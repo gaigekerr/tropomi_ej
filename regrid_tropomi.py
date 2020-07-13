@@ -10,8 +10,8 @@ Todo:
     * Convert to molec cm-2? (x 6.02214e+19)            COMPLETE - 5 July 2020
 """
 
-DDIR = '/mnt/scratch3/gaige/TROPOMI/'
-DDIR_OUT = '/mnt/scratch3/gaige/TROPOMI/'
+# DDIR = '/mnt/scratch3/gaige/TROPOMI/'
+# DDIR_OUT = '/mnt/scratch3/gaige/TROPOMI/'
 DDIR = '/Users/ghkerr/GW/data/'
 DDIR_OUT = '/Users/ghkerr/GW/data/'
 
@@ -122,7 +122,7 @@ def apply_qa_value(tropomi, var, threshold):
         tropomi[var][g] = tmp_g
     return tropomi
 
-def interpolate_tropomi(tropomi, var, crop, lonss, latss):
+def regrid(tropomi, var, crop, lonss, latss, nchunk):
     """Regrid TROPOMI data to a consistent rectlinear grid separated by a 
     constant spacing
     
@@ -138,7 +138,13 @@ def interpolate_tropomi(tropomi, var, crop, lonss, latss):
     lonss : float
         Longitude step size, i.e. grid resolution, units of degrees
     latss : float
-        Latitude step size, i.e. grid resolution, units of degrees   
+        Latitude step size, i.e. grid resolution, units of degrees
+    nchunk : int
+        Number of chunks that the time-varying lat/lon grid for the satellite
+        retrievals will be split into. Note that this function splits the 
+        lat/lon grid by the y dimension since the satellite swaths are 
+        predominantly N/S (if split on the x dimension, there will be instances
+        where there are no retrivals in a chunk and xESMF will throw an error).
 
     Returns
     -------    
@@ -151,14 +157,33 @@ def interpolate_tropomi(tropomi, var, crop, lonss, latss):
          Rectilinear longitude spine with grid spacing given by variable 
          "lonss," [lon,]
     """
+    from timeit import default_timer as timer
+    from datetime import timedelta
+    start = timer()
     import numpy as np
     import xarray as xr
     import xesmf as xe
+    import cartopy.crs as ccrs
     interpolated = []
+    def chunk_it(length, num):
+        """For a given dimension size, get the start/stop indices of quasi equal-
+        sized chunks. Adapted from stackoverflow.com/questions/2130016/splitting-
+        a-list-into-n-parts-of-approximately-equal-length
+        """
+        import numpy as np
+        avg = length / float(num)
+        seq = np.arange(0,length,1)
+        out = []
+        last = 0.0
+        while last < length:
+            out.append(seq[int(last):int(last + avg)])
+            last += avg
+        return [(x[0], x[-1]+1) for x in out]  
     # Constract 2D rectilinear grid, cropped over region of interest so there
     # are no issues with buffers and to avoid creating large ESMF grid objects 
     # (see https://github.com/JiaweiZhuang/xESMF/issues/29)
     ds_out = xe.util.grid_2d(crop[0], crop[1], lonss, crop[2], crop[3], latss)
+    ds_out = ds_out.drop(labels=['lon_b','lat_b'])
     # Extract latitude/longitude spines
     lat_out = np.nanmean(ds_out.lat.data, axis=1)
     lon_out = np.nanmean(ds_out.lon.data, axis=0)
@@ -169,42 +194,82 @@ def interpolate_tropomi(tropomi, var, crop, lonss, latss):
         var_g = tropomi[var][g]
         lat_g = tropomi['latitude'][g]
         lng_g = tropomi['longitude'][g]
+        # List to fill with interpolated values for particular granule "g"
+        interpolated_g = []
         # Make xarray dataset for variable/time of interest 
         ds = xr.Dataset({var: (['x', 'y'],  var_g)}, 
             coords={'lon': (['x', 'y'], lng_g), 'lat': (['x', 'y'], lat_g)})
-        dr = ds[var]
-        # Perform regridding; see 
-        # https://xesmf.readthedocs.io/en/latest/notebooks/Curvilinear_grid.html
-        regridder = xe.Regridder(ds, ds_out, 'bilinear', 
-            ignore_degenerate=True) # Note that xESMF thinks that some grid 
-        # cells (maybe near edges of the domain) are triangles are instead of 
-        # quadrilaters (i.e., degenerated); see 
-        # https://github.com/JiaweiZhuang/xESMF/issues/60
-        dr_out = regridder(dr)
+        # Chunk up TROPOMI data so xESMF doesn't crash 
+        for chunk in chunk_it(ds_out.y.shape[0], nchunk):
+            ds_out_chunk = ds_out.isel(y=slice(chunk[0],chunk[-1]))
+            # Only examine retrievals that are approximately within the 
+            # chunk             
+            ds_chunk = ds.where(
+                (ds.lon > ds_out_chunk.lon.data.min()) & 
+                (ds.lon < ds_out_chunk.lon.data.max()) & 
+                (ds.lat > ds_out_chunk.lat.data.min()) & 
+                (ds.lat < ds_out_chunk.lat.data.max()), drop=True)
+            dr = ds_chunk[var]
+            # Only perform regridding if there are points in chunk to regrid;
+            # There are issues when there are chunked sections of the high 
+            # resolution grid that don't overlap with any TROPOMI retrivals
+            # (see https://github.com/JiaweiZhuang/xESMF/issues/36), if the 
+            # shape of the retrieval within the chunk is (0,0). Then fill the 
+            # output interpolated array with NaNs
+            if ds_chunk[var].shape == (0,0):
+                dr_out = np.empty(shape=(ds_out_chunk.y.shape[0],
+                    ds_out_chunk.x.shape[0]))
+                dr_out[:] = np.nan
+                interpolated_g.append(dr_out)            
+            else: 
+                # Note that xESMF thinks that some grid cells (maybe near edges
+                # of the domain) are triangles are instead of quadrilaters 
+                # (i.e., degenerated); see https://github.com/JiaweiZhuang/xESMF/
+                # issues/60                
+                regridder = xe.Regridder(ds_chunk, ds_out_chunk, 'bilinear', 
+                    ignore_degenerate=True)
+                dr_out = regridder(dr)
+                interpolated_g.append(dr_out.data)
+                regridder.clean_weight_file()  # clean-up
+        # There appears to be issues with cells that are outide the old grid's 
+        # domain (see https://github.com/JiaweiZhuang/xESMF/issues/15) are all 
+        # set to 0.0 when regridding rather than nan. Force any interpolated 
+        # grid cell that is identically equal to 0.0 to be NaNs 
+        interpolated_g = np.vstack(interpolated_g)
+        interpolated_g[interpolated_g==0.0] = np.nan
         # # # # Optional: check regridding 
-        # import matplotlib.pyplot as plt
-        # plt.figure(figsize=(8,4))
-        # ax1 = plt.subplot2grid((2,2),(0,0),colspan=2, 
-        #     projection=ccrs.PlateCarree())
-        # ax2 = plt.subplot2grid((2,2),(1,0),colspan=2, 
-        #     projection=ccrs.PlateCarree())    
+        import matplotlib.pyplot as plt
+        fig = plt.figure(figsize=(8,4))
+        ax1 = plt.subplot2grid((2,2),(0,0),colspan=2, 
+            projection=ccrs.PlateCarree())
+        ax2 = plt.subplot2grid((2,2),(1,0),colspan=2, 
+            projection=ccrs.PlateCarree())    
+        mb1 = ax1.pcolormesh(lng_g, lat_g, var_g, cmap=plt.get_cmap(
+            'gist_earth'), vmin=np.nanpercentile(interpolated_g, 20),
+            vmax=np.nanpercentile(interpolated_g, 20))
+        ax1.coastlines()
+        plt.colorbar(mb1, ax=ax1)
         # dr.plot.pcolormesh(ax=ax1, x='lon', y='lat', levels=np.linspace(
         #     np.nanpercentile(dr.data, 20), np.nanpercentile(dr.data, 80), 
-        #     10));
-        # ax1.coastlines();
-        # dr_out.plot.pcolormesh(ax=ax2, x='lon', y='lat', levels=np.linspace(
-        #     np.nanpercentile(dr.data, 20), np.nanpercentile(dr.data, 80), 
-        #     10));
-        # ax2.coastlines();
-        # plt.show()
+        #     10), cmap=plt.get_cmap('gist_earth'));
+        mb2 = ax2.pcolormesh(lon_out, lat_out, interpolated_g, 
+            cmap=plt.get_cmap('gist_earth'), vmin=
+            np.nanpercentile(interpolated_g, 20), 
+            vmax=np.nanpercentile(interpolated_g, 20))
+        plt.colorbar(mb2, ax=ax2, extend='both')
+        ax2.coastlines()
+        for ax in [ax1, ax2]:
+            ax.set_extent(crop)
+        plt.show()
         # # # # 
-        regridder.clean_weight_file()  # clean-up
-        # Append interpolated grid to file
-        interpolated.append(dr_out.data)
+        # Append interpolated grid to multi-granule list
+        interpolated.append(interpolated_g)
     interpolated = np.stack(interpolated)
+    end = timer()
+    print('Interpolated in...', timedelta(seconds=end-start))
     return interpolated, lat_out, lon_out
 
-def regrid_tropomi(startdate, enddate, crop, lonss, latss, qa=0.75):
+def regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk, qa=0.75):
     """Read SP5/TROPOMI L2 OFFL NO2, conduct quality assurance on data, and 
     interpolate to a standard rectilinear grid. Each interpolated granuleand 
     the date on which it was retrieved is saved in the output file. 
@@ -220,11 +285,15 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, qa=0.75):
     lonss : float
         Longitude step size, i.e. grid resolution, units of degrees
     latss : float
-        Latitude step size, i.e. grid resolution, units of degrees   
+        Latitude step size, i.e. grid resolution, units of degrees
+    nchunk : int
+        Number of chunks to split fine resolution grid into for regridding
+        (if the resolution of output grid is, say, 1 deg, then this could be 
+        1)
     qa : optional, float
         Data quality threshold below which data will be screen (recommended to
         ignore data with QA values < 0.5)
-
+        
     Returns
     -------    
     None
@@ -239,8 +308,7 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, qa=0.75):
     # Filter out bad/erroneous data
     tropomi = apply_qa_value(tropomi, var, qa)
     # Interpolate to rectilinear grid
-    interpolated, lat, lon = interpolate_tropomi(tropomi, var, crop, 
-        lonss, latss)
+    interpolated, lat, lon = regrid(tropomi, var, crop, lonss, latss, nchunk)
     # Create output file which specifies the version, constituent, operation, 
     # and start/end dates
     root_grp = nc.Dataset(DDIR_OUT+
@@ -254,7 +322,7 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, qa=0.75):
         datetime.today().year)
     root_grp.description = 'Data are for %s to %s '%(startdate,enddate)+\
         'and are filtered such that only qa_value > %.2f are included. '%(qa)+\
-        'Data regridded to %d deg longitude x %d deg latitude grid'\
+        'Data regridded to %.2f deg longitude x %.2f deg latitude grid'\
         %(lonss, latss)
     # Dimensions
     root_grp.createDimension('time', None)
@@ -286,12 +354,27 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, qa=0.75):
     root_grp.close()
     return
 
-# startdate = '2019-04-01'
-# enddate = '2019-04-30'
-# crop = [-130, -50, 15, 60]
-# lonss = 0.25
-# latss = 0.25
-# regrid_tropomi(startdate, enddate, crop, lonss, latss)
+startdate = '2019-04-01'
+enddate = '2019-04-30'
+
+crop = [-125, -65, 23, 52]
+lonss = 0.01
+latss = 0.01
+nchunk = 4
+regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk)
+
+# import numpy as np
+# fig = plt.figure()
+# ax = plt.subplot2grid((1,1), (0,0))
+# mb = ax.pcolormesh(tropomi['longitude'][0], tropomi['latitude'][0], 
+#     tropomi['nitrogendioxide_tropospheric_column'][0], vmin=0., vmax=0.0001)
+# plt.colorbar(mb)
+# ax.set_xlim([-170,-110])
+# ax.set_ylim([0, 75])
+
+
+
+
 
 # import matplotlib.pyplot as plt
 # import netCDF4 as nc
@@ -363,4 +446,3 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, qa=0.75):
 # cm = ax.contourf(danavg_lng[::10], danavg_lat[::10], danavg_no2[::10,::10], 
 #     clevs, cmap=cmap, transform=ccrs.PlateCarree())
 # plt.colorbar(cm, extend='max')
-

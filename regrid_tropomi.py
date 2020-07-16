@@ -8,14 +8,17 @@ Todo:
     * Include netCDF4 attributes/description in output file
     * Output file name should state resolution, QA      COMPLETE - 5 July 2020
     * Convert to molec cm-2? (x 6.02214e+19)            COMPLETE - 5 July 2020
-    * Output fill value instead of NaN
-    * Daily average for all granuales in output file
+    * Output fill value instead of NaN                  COMPLETE - 15 July 2020
+    * Daily average for all granuales in output file    COMPLETE - 15 July 2020
 """
 
-# DDIR = '/mnt/scratch3/gaige/TROPOMI/'
-# DDIR_OUT = '/mnt/scratch3/gaige/TROPOMI/'
-DDIR = '/Users/ghkerr/GW/data/'
-DDIR_OUT = '/Users/ghkerr/GW/data/'
+DDIR = '/mnt/scratch3/gaige/TROPOMI/'
+DDIR_DATA = '/mnt/scratch3/gaige/TROPOMI/conus/'
+DDIR_OUT = '/mnt/scratch3/gaige/TROPOMI/'
+
+# DDIR = '/Users/ghkerr/GW/data/'
+# DDIR_DATA = '/Users/ghkerr/GW/data/'
+# DDIR_OUT = '/Users/ghkerr/GW/data/'
 
 def load_tropomi(date, fstr, var):
     """Read S5P/TROPOMI granules for a given range of dates and extract 
@@ -47,13 +50,13 @@ def load_tropomi(date, fstr, var):
     date = str(date.year)+str(date.month).zfill(2)+str(date.day).zfill(2)
     # Find all TROPOMI files for day of interest (must remove fstr, which 
     # specifies product/level/gas)
-    files = [fn for fn in os.listdir(DDIR) if 
+    files = [fn for fn in os.listdir(DDIR_DATA) if 
         (fn.replace(fstr,'').startswith(date)==True)]
     # Variables of interest will be extracted and stored in a dictionary
     outdict = {key:[] for key in ['qa_value', 'latitude', 'longitude', 
         'time', var]}
     for file in files:
-        infile = nc.Dataset(DDIR+file,'r')
+        infile = nc.Dataset(DDIR_DATA+file,'r')
         # Grid changes with each granule, so this needs to be saved off at
         # every iteration
         lat = infile.groups['PRODUCT'].variables['latitude'][0].data
@@ -193,10 +196,10 @@ def regrid(tropomi, var, crop, lonss, latss, nchunk):
         # Make xarray dataset for variable/time of interest 
         ds = xr.Dataset({var: (['x', 'y'],  var_g)}, 
             coords={'lon': (['x', 'y'], lng_g), 'lat': (['x', 'y'], lat_g)})
-        # # Get rid of points outside domain/crop box 
-        # ds = ds.where((ds['lat']>=crop[2]) & 
-        #    (ds['lat']<=crop[3]) & (ds['lon']>=crop[0]) & 
-        #    (ds['lon']<=crop[1]), drop=True)
+        # Get rid of points outside domain/crop box 
+        ds = ds.where((ds['lat']>=crop[2]) & 
+            (ds['lat']<=crop[3]) & (ds['lon']>=crop[0]) & 
+            (ds['lon']<=crop[1]), drop=True)
         # Chunk up TROPOMI data so xESMF doesn't crash 
         for chunk in chunk_it(ds_out.y.shape[0], nchunk):
             ds_out_chunk = ds_out.isel(y=slice(chunk[0],chunk[-1]))
@@ -230,26 +233,26 @@ def regrid(tropomi, var, crop, lonss, latss, nchunk):
         interpolated_g = np.vstack(interpolated_g)
         interpolated_g[interpolated_g==0.0] = np.nan
         # # # # Optional: check regridding 
-        import matplotlib.pyplot as plt
-        fig = plt.figure(figsize=(8,4))
-        ax1 = plt.subplot2grid((2,2),(0,0),colspan=2, 
-            projection=ccrs.PlateCarree())
-        ax2 = plt.subplot2grid((2,2),(1,0),colspan=2, 
-            projection=ccrs.PlateCarree())    
-        mb1 = ax1.pcolormesh(lng_g, lat_g, var_g, cmap=plt.get_cmap(
-            'gist_earth'), vmin=np.nanpercentile(interpolated_g, 20),
-            vmax=np.nanpercentile(interpolated_g, 20))
-        ax1.coastlines()
-        plt.colorbar(mb1, ax=ax1)
-        mb2 = ax2.pcolormesh(lon_out, lat_out, interpolated_g, 
-            cmap=plt.get_cmap('gist_earth'), vmin=
-            np.nanpercentile(interpolated_g, 20), 
-            vmax=np.nanpercentile(interpolated_g, 20))
-        plt.colorbar(mb2, ax=ax2, extend='both')
-        ax2.coastlines()
-        for ax in [ax1, ax2]:
-            ax.set_extent(crop)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # fig = plt.figure(figsize=(8,4))
+        # ax1 = plt.subplot2grid((2,2),(0,0),colspan=2, 
+        #     projection=ccrs.PlateCarree())
+        # ax2 = plt.subplot2grid((2,2),(1,0),colspan=2, 
+        #     projection=ccrs.PlateCarree())    
+        # mb1 = ax1.pcolormesh(lng_g, lat_g, var_g, cmap=plt.get_cmap(
+        #     'gist_earth'), vmin=np.nanpercentile(interpolated_g, 20),
+        #     vmax=np.nanpercentile(interpolated_g, 20))
+        # ax1.coastlines()
+        # plt.colorbar(mb1, ax=ax1)
+        # mb2 = ax2.pcolormesh(lon_out, lat_out, interpolated_g, 
+        #     cmap=plt.get_cmap('gist_earth'), vmin=
+        #     np.nanpercentile(interpolated_g, 20), 
+        #     vmax=np.nanpercentile(interpolated_g, 20))
+        # plt.colorbar(mb2, ax=ax2, extend='both')
+        # ax2.coastlines()
+        # for ax in [ax1, ax2]:
+        #     ax.set_extent(crop)
+        # plt.show()
         # # # # 
         # Append interpolated grid to multi-granule list
         interpolated.append(interpolated_g)
@@ -258,7 +261,8 @@ def regrid(tropomi, var, crop, lonss, latss, nchunk):
     print('Interpolated in...', timedelta(seconds=end-start))
     return interpolated, lat_out, lon_out
 
-def regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk, qa=0.75):
+def regrid_tropomi(startdate, enddate, crop, region, lonss, latss, nchunk, 
+    qa=0.75):
     """Read SP5/TROPOMI L2 OFFL NO2, conduct quality assurance on data, and 
     interpolate to a standard rectilinear grid. Each interpolated granuleand 
     the date on which it was retrieved is saved in the output file. 
@@ -271,6 +275,9 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk, qa=0.75):
         End date of time period of interest
     crop : list
         Bounds (x0,x1,y0,y1) roughly corresponding to TROPOMI focus region
+    region : str
+        Description of focus region (contained in the bounding box given in
+        "crop") that is used in the output file name; e.g. conus, azores
     lonss : float
         Longitude step size, i.e. grid resolution, units of degrees
     latss : float
@@ -288,9 +295,10 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk, qa=0.75):
     None
     """
     import calendar
+    import numpy as np
     import netCDF4 as nc
     from datetime import datetime
-    import pandas as pd    
+    import pandas as pd
     fstr = 'S5P_OFFL_L2__NO2____'
     var = 'nitrogendioxide_tropospheric_column'
     for date in pd.date_range(startdate, enddate): 
@@ -306,7 +314,7 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk, qa=0.75):
             # Create output file which specifies the version, constituent, operation, 
             # and start/end dates
             root_grp = nc.Dataset(DDIR_OUT+
-                'S5P_NO2_%s_%.2fgrid_QA%d.nc'%(
+                'S5P_NO2_%s_%s_%.2fgrid_QA%d.nc'%(region, 
                 datetime.strftime(datetime.strptime(date,'%Y-%m-%d'),'%Y%m%d'),
                 latss, int(qa*100)), 'w', format='NETCDF4')
             root_grp.title = u'TROPOMI/S5P %s '%(var)
@@ -334,28 +342,37 @@ def regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk, qa=0.75):
             var_lat.units = 'degrees north'
             # TROPOMI extract
             var_out = root_grp.createVariable(var, 
-                'f8', ('time', 'latitude', 'longitude',))
-            var_out[:] = (interpolated*6.02214e+19)
+                'f8', ('time', 'latitude', 'longitude',),
+                fill_value=nc.default_fillvals['f8'])
+            # Calculate daily average, convert to molec/cm2, and replace 
+            # NaNs with fill value
+            interpolated = np.nanmean(interpolated, axis=0)
+            interpolated = interpolated*6.02214e+19
+            interpolated[np.where(np.isnan(interpolated)==True)] = \
+                nc.default_fillvals['f8']
+            var_out[:] = interpolated.reshape(1, 
+                interpolated.shape[0], interpolated.shape[1])
             var_out.long_name = var
             var_out.units = 'molecules_percm2'
             # Time
             var_t = root_grp.createVariable('time', 'int32', ('time',))
             var_t.setncattr('units', 'seconds since 2010-01-01 00:00:00 UTC')
-            ntime = nc.date2num(tropomi['time'], var_t.units)
+            ntime = nc.date2num(tropomi['time'][0], var_t.units)
             var_t[:] = ntime
             # Closing
             root_grp.close()
         # In case there are no granuales for day/region of interest
         except ValueError: 
             pass
-    return
+    return 
 
 startdate = '2019-04-01'
-enddate = '2019-04-01'
+enddate = '2019-04-30'
 crop = [-125, -65, 23, 52]
-lonss = 1.
-latss = 1.
-nchunk = 4.
-regrid_tropomi(startdate, enddate, crop, lonss, latss, nchunk)
+lonss = 0.01
+latss = 0.01
+nchunk = 3
+region = 'conus'
+regrid_tropomi(startdate, enddate, crop, region, lonss, latss, nchunk)
 
 

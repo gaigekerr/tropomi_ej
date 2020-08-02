@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""This module reads in  S5P/TROPOMI granules for given dates and interpolates
-from the S5P time-varying grid to a fixed grid.
+"""This module reads in  S5P/TROPOMI granules for given dates and regrids
+from the S5P time-varying grid to a fixed grid. Regridded data are saved for 
+every day, if there are granules available for that given day. If there are >1
+granules, a daily average file is formed.
 
 Todo:
     * Figure out time vs time_utc
@@ -12,13 +14,9 @@ Todo:
     * Daily average for all granuales in output file    COMPLETE - 15 July 2020
 """
 
-DDIR = '/mnt/scratch3/gaige/TROPOMI/'
-DDIR_DATA = '/mnt/scratch3/gaige/TROPOMI/conus/'
-DDIR_OUT = '/mnt/scratch3/gaige/TROPOMI/'
-
-# DDIR = '/Users/ghkerr/GW/data/'
-# DDIR_DATA = '/Users/ghkerr/GW/data/'
-# DDIR_OUT = '/Users/ghkerr/GW/data/'
+DDIR = '/GWSPH/groups/anenberggrp/ghkerr/data/TROPOMI/newyork/'
+DDIR_DATA = DDIR+'raw/'
+DDIR_OUT = DDIR+'regridded/'
 
 def load_tropomi(date, fstr, var):
     """Read S5P/TROPOMI granules for a given range of dates and extract 
@@ -261,14 +259,23 @@ def regrid(tropomi, var, crop, lonss, latss, nchunk):
     print('Interpolated in...', timedelta(seconds=end-start))
     return interpolated, lat_out, lon_out
 
-def regrid_tropomi(startdate, enddate, crop, region, lonss, latss, nchunk, 
-    qa=0.75):
+def regrid_tropomi(fstr, var, varname, startdate, enddate, crop, region, lonss, 
+    latss, nchunk, qa=0.75):
     """Read SP5/TROPOMI L2 OFFL NO2, conduct quality assurance on data, and 
     interpolate to a standard rectilinear grid. Each interpolated granuleand 
     the date on which it was retrieved is saved in the output file. 
     
     Parameters
-    ----------    
+    ----------   
+    fstr : str
+        TROPOMI data file descriptor (e.g., S5P_OFFL_L2__NO2____); should have 
+        len = 20. See http://www.tropomi.eu/data-products/level-2-products 
+        for more information 
+    var  : str
+        Variable of interest from TROPOMI data (e.g., 
+        nitrogendioxide_tropospheric_column)
+    varname : str
+        Variable name (e.g., NO2) for output file
     startdate : str
         Start date of time period of interest
     enddate : str
@@ -299,8 +306,6 @@ def regrid_tropomi(startdate, enddate, crop, region, lonss, latss, nchunk,
     import netCDF4 as nc
     from datetime import datetime
     import pandas as pd
-    fstr = 'S5P_OFFL_L2__NO2____'
-    var = 'nitrogendioxide_tropospheric_column'
     for date in pd.date_range(startdate, enddate): 
         date = date.strftime('%Y-%m-%d')
         print(date)
@@ -314,14 +319,14 @@ def regrid_tropomi(startdate, enddate, crop, region, lonss, latss, nchunk,
             # Create output file which specifies the version, constituent, operation, 
             # and start/end dates
             root_grp = nc.Dataset(DDIR_OUT+
-                'S5P_NO2_%s_%s_%.2fgrid_QA%d.nc'%(region, 
+                'S5P_%s_%s_%s_%.2fgrid_QA%d.nc'%(varname, region, 
                 datetime.strftime(datetime.strptime(date,'%Y-%m-%d'),'%Y%m%d'),
                 latss, int(qa*100)), 'w', format='NETCDF4')
             root_grp.title = u'TROPOMI/S5P %s '%(var)
             root_grp.history = 'created %d %s %d by Gaige Kerr (gaigekerr@gwu.edu)'\
                 %(datetime.today().day, calendar.month_abbr[datetime.today().month],
                 datetime.today().year)
-            root_grp.description = 'Data are for %s to %s '%(startdate,enddate)+\
+            root_grp.description = 'Data are for %s '%(date)+\
                 'and are filtered such that only qa_value > %.2f are included. '%(qa)+\
                 'Data regridded to %.2f deg longitude x %.2f deg latitude grid'\
                 %(lonss, latss)
@@ -366,13 +371,46 @@ def regrid_tropomi(startdate, enddate, crop, region, lonss, latss, nchunk,
             pass
     return 
 
+# # CONUS 
+# fstr = 'S5P_OFFL_L2__NO2____'
+# var = 'nitrogendioxide_tropospheric_column'
+# varname = 'NO2'
 startdate = '2019-04-01'
 enddate = '2019-04-30'
-crop = [-125, -65, 23, 52]
+# crop = [-124.75, -66.75, 24.5, 49.5]
+# lonss = 0.01
+# latss = 0.01
+# nchunk = 3
+# region = 'conus'
+# regrid_tropomi(fstr, var, varname, startdate, enddate, crop, region, lonss, 
+#     latss, nchunk)
+
+# # Milan
+# fstr = 'S5P_OFFL_L2__NO2____'
+# var = 'nitrogendioxide_tropospheric_column'
+# varname = 'NO2'
+# startdate = '2020-01-01'
+# enddate = '2020-05-31'
+# crop = [43.8, 46.6, 7.8, 10.8]
+# lonss = 0.01
+# latss = 0.01
+# nchunk = 2
+# region = 'milan'
+# regrid_tropomi(fstr, var, varname, startdate, enddate, crop, region, lonss, 
+#     latss, nchunk)
+
+# New York
+fstr = 'S5P_OFFL_L2__NO2____'
+var = 'nitrogendioxide_tropospheric_column'
+varname = 'NO2'
+startdate = '2020-01-01'
+enddate = '2020-05-31'
+crop = [-75., -73., 40.2, 41.4]
 lonss = 0.01
 latss = 0.01
-nchunk = 3
-region = 'conus'
-regrid_tropomi(startdate, enddate, crop, region, lonss, latss, nchunk)
+nchunk = 2
+region = 'newyork'
+regrid_tropomi(fstr, var, varname, startdate, enddate, crop, region, lonss, 
+    latss, nchunk)
 
 

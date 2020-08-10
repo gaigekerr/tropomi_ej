@@ -153,10 +153,10 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
     DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
     DIR_OUT = '/Users/ghkerr/Desktop/'
-    DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
-    DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
-    DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
-    DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
+    # DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
+    # DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
+    # DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
+    # DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
     
     # Read in census tract information from https://www.nhgis.org
     #----------------------
@@ -171,19 +171,7 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         'AJWBE026', # Female
         'AJWCE002', # Median age: Male
         'AJWCE003', # Median age: Female
-        'AJWNE002', # White alone
-        'AJWNE003', # Black or African American alone
-        'AJWNE004', # American Indian and Alaska Native alone
-        'AJWNE005', # Asian alone
-        'AJWNE006', # Native Hawaiian and Other Pacific Islander alone
-        'AJWNE007', # Some other race alone
-        'AJWNE008', # Two or more races
-        'AJWNE009', # Two or more races: Two races including Some other race
-        'AJWNE010', # Two or more races: Two races excluding Some other race,
-        # and three or more races
-        'AJWWE001', # Total
-        'AJWWE002', # Not Hispanic or Latino
-        'AJWWE003', # Hispanic or Latino
+
         'AJZAE001', # Median household income in the past 12 months (in 2018 
         # inflation-adjusted dollars)
         'AJ0EE001', # Per capita income in the past 12 months (in 2018 
@@ -216,133 +204,52 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         'AJYPE023', # Master's degree
         'AJYPE024', # Professional school degree
         'AJYPE025', # Doctorate degree
+        # Note that not all insurance-related variables are needed for the 
+        # insurance as some further subdivide insurance holders into how many/
+        # the types of insurance they have
         'AJ35E001', # Total
-        'AJ35E002', # Under 19 years
         'AJ35E003', # Under 19 years: With one type of health insurance 
         # coverage
-        'AJ35E004', # Under 19 years: With one type of health insurance 
-        # coverage: With employer-based health insurance only
-        'AJ35E005', # Under 19 years: With one type of health insurance 
-        # coverage: With direct-purchase health insurance only
-        'AJ35E006', # Under 19 years: With one type of health insurance 
-        # coverage: With Medicare coverage only
-        'AJ35E007', #  Under 19 years: With one type of health insurance 
-        # coverage: With Medicaid/means-tested public coverage only
-        'AJ35E008', # Under 19 years: With one type of health insurance 
-        # coverage: With TRICARE/military health coverage only
-        'AJ35E009', # Under 19 years: With one type of health insurance 
-        # coverage: With VA Health Care only
         'AJ35E010', # Under 19 years: With two or more types of health 
         # insurance coverage
-        'AJ35E011', # Under 19 years: With two or more types of health 
-        # insurance coverage: With employer-based and direct-purchase coverage
-        'AJ35E012', # Under 19 years: With two or more types of health 
-        # insurance coverage: With employer-based and Medicare coverage
-        'AJ35E013', # Under 19 years: With two or more types of health 
-        # insurance coverage: With Medicare and Medicaid/means-tested 
-        # public coverage
-        'AJ35E014', # Under 19 years: With two or more types of health 
-        # insurance coverage: Other private only combinations
-        'AJ35E015', # Under 19 years: With two or more types of health 
-        # insurance coverage: Other public only combinations
-        'AJ35E016', # Under 19 years: With two or more types of health 
-        # insurance coverage: Other coverage combinations
         'AJ35E017', # Under 19 years: No health insurance coverage
-        'AJ35E018', # 19 to 34 years
         'AJ35E019', # 19 to 34 years: With one type of health insurance     
         # coverage
-        'AJ35E020', # 19 to 34 years: With one type of health insurance 
-        # coverage: With employer-based health insurance only
-        'AJ35E021', # 19 to 34 years: With one type of health insurance 
-        # coverage: With direct-purchase health insurance only
-        'AJ35E022', # 19 to 34 years: With one type of health insurance 
-        # coverage: With Medicare coverage only
-        'AJ35E023', # 19 to 34 years: With one type of health insurance 
-        # coverage: With Medicaid/means-tested public coverage only
-        'AJ35E024', # 19 to 34 years: With one type of health insurance 
-        # coverage: With TRICARE/military health coverage only
-        'AJ35E025', # 19 to 34 years: With one type of health insurance 
-        # coverage: With VA Health Care only
         'AJ35E026', # 19 to 34 years: With two or more types of health 
         # insurance coverage
-        'AJ35E027', # 19 to 34 years: With two or more types of health 
-        # insurance coverage: With employer-based and direct-purchase coverage
-        'AJ35E028', # 19 to 34 years: With two or more types of health 
-        # insurance coverage: With employer-based and Medicare coverage
-        'AJ35E029', # 19 to 34 years: With two or more types of health 
-        # insurance coverage: With Medicare and Medicaid/means-tested 
-        # public coverage
-        'AJ35E030', # 19 to 34 years: With two or more types of health 
-        # insurance coverage: Other private only combinations
-        'AJ35E031', # 19 to 34 years: With two or more types of health 
-        # insurance coverage: Other public only combinations
-        'AJ35E032', # 19 to 34 years: With two or more types of health 
-        # insurance coverage: Other coverage combinations
         'AJ35E033', # 19 to 34 years: No health insurance coverage
-        'AJ35E034', # 35 to 64 years
         'AJ35E035', # 35 to 64 years: With one type of health insurance 
         # coverage
-        'AJ35E036', # 35 to 64 years: With one type of health insurance 
-        # coverage: With employer-based health insurance only
-        'AJ35E037', # 35 to 64 years: With one type of health insurance 
-        # coverage: With direct-purchase health insurance only
-        'AJ35E038', # 35 to 64 years: With one type of health insurance 
-        # coverage: With Medicare coverage only
-        'AJ35E039', # 35 to 64 years: With one type of health insurance 
-        # coverage: With Medicaid/means-tested public coverage only
-        'AJ35E040', # 35 to 64 years: With one type of health insurance 
-        # coverage: With TRICARE/military health coverage only
-        'AJ35E041', # 35 to 64 years: With one type of health insurance 
-        # coverage: With VA Health Care only
         'AJ35E042', # 35 to 64 years: With two or more types of health 
         # insurance coverage
-        'AJ35E043', # 35 to 64 years: With two or more types of health 
-        # insurance coverage: With employer-based and direct-purchase coverage
-        'AJ35E044', # 35 to 64 years: With two or more types of health 
-        # insurance coverage: With employer-based and Medicare coverage
-        'AJ35E045', # 35 to 64 years: With two or more types of health 
-        # insurance coverage: With direct-purchase and Medicare coverage
-        'AJ35E046', # 35 to 64 years: With two or more types of health 
-        # insurance coverage: With Medicare and Medicaid/means-tested public 
-        # coverage
-        'AJ35E047', # 35 to 64 years: With two or more types of health 
-        # insurance coverage: Other private only combinations
-        'AJ35E048', # 35 to 64 years: With two or more types of health 
-        # insurance coverage: Other public only combinations
-        'AJ35E049', # 35 to 64 years: With two or more types of health 
-        # insurance coverage: Other coverage combinations
         'AJ35E050', # 35 to 64 years: No health insurance coverage
-        'AJ35E051', # 65 years and over
         'AJ35E052', # 65 years and over: With one type of health insurance 
         # coverage
-        'AJ35E053', # 65 years and over: With one type of health insurance 
-        # coverage: With employer-based health insurance only
-        'AJ35E054', # 65 years and over: With one type of health insurance 
-        # coverage: With direct-purchase health insurance only
-        'AJ35E055', # 65 years and over: With one type of health insurance 
-        # coverage: With Medicare coverage only
-        'AJ35E056', # 65 years and over: With one type of health insurance 
-        # coverage: With TRICARE/military health coverage only
-        'AJ35E057', # 65 years and over: With one type of health insurance 
-        # coverage: With VA Health Care only
         'AJ35E058', # 65 years and over: With two or more types of health 
         # insurance coverage
-        'AJ35E059', # 65 years and over: With two or more types of health 
-        # insurance coverage: With employer-based and direct-purchase coverage
-        'AJ35E060', # 65 years and over: With two or more types of health 
-        # insurance coverage: With employer-based and Medicare coverage
-        'AJ35E061', # 65 years and over: With two or more types of health 
-        # insurance coverage: With direct-purchase and Medicare coverage
-        'AJ35E062', # 65 years and over: With two or more types of health 
-        # insurance coverage: With Medicare and Medicaid/means-tested public 
-        # coverage
-        'AJ35E063', # 65 years and over: With two or more types of health 
-        # insurance coverage: Other private only combinations
-        'AJ35E064', # 65 years and over: With two or more types of health 
-        # insurance coverage: Other public only combinations
-        'AJ35E065', # 65 years and over: With two or more types of health 
-        # insurance coverage: Other coverage combinations
-        'AJ35E066' # 65 years and over: No health insurance coverage
+        'AJ35E066', # 65 years and over: No health insurance coverage
+        'AJWVE001', # Total
+        'AJWVE002', # Not Hispanic or Latino
+        'AJWVE003', # Not Hispanic or Latino: White alone
+        'AJWVE004', # Not Hispanic or Latino: Black or African American 
+        # alone
+        'AJWVE005', # Not Hispanic or Latino: American Indian and Alaska 
+        # Native alone
+        'AJWVE006', # Not Hispanic or Latino: Asian alone
+        'AJWVE007', # Not Hispanic or Latino: Native Hawaiian and Other 
+        # Pacific Islander alone
+        'AJWVE008', # Not Hispanic or Latino: Some other race alone
+        'AJWVE009', # Not Hispanic or Latino: Two or more races
+        'AJWVE012', # Hispanic or Latino
+        'AJWVE013', # Hispanic or Latino: White alone
+        'AJWVE014', # Hispanic or Latino: Black or African American alone
+        'AJWVE015', # Hispanic or Latino: American Indian and Alaska Native 
+        # alone
+        'AJWVE016', # Hispanic or Latino: Asian alone
+        'AJWVE017', # Hispanic or Latino: Native Hawaiian and Other Pacific 
+        # Islander alone
+        'AJWVE018', # Hispanic or Latino: Some other race alone
+        'AJWVE019' # Hispanic or Latino: Two or more races
         ]
     print('# # # # # NHGIS census tract-level information read! # # # # #')
     
@@ -365,8 +272,18 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
     postNO2 = nc.Dataset(DIR_NO2+
         'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
+    preNO2apr = nc.Dataset(DIR_NO2+
+        'Tropomi_NO2_griddedon0.01grid_Apr01-Jun302019_precovid19_QA75.ncf')
+    postNO2apr = nc.Dataset(DIR_NO2+
+        'Tropomi_NO2_griddedon0.01grid_Apr01-Jun302020_postcovid19_QA75.ncf') 
+    allNO2 = nc.Dataset(DIR_NO2+
+        'Tropomi_NO2_griddedon0.01grid_allyears_QA75.ncf') 
     preNO2 = preNO2.variables['NO2'][:]
     postNO2 = postNO2.variables['NO2'][:]    
+    preNO2apr = preNO2apr['NO2'][:]
+    postNO2apr = postNO2apr['NO2'][:]
+    allNO2 = allNO2['NO2'][:]
+    
     # Dimensional information (lat/lon)
     grid = nc.Dataset(DIR_NO2+'LatLonGrid.ncf')
     lng_full = grid.variables['LON'][:]
@@ -393,27 +310,57 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         preNO2, lat, lng = find_grid_in_bb(preNO2, lat_full, lng_full, 
             min_lngs-0.25, max_lngs+0.25, min_lats-0.25, lat_full[-1])
         postNO2, lat, lng = find_grid_in_bb(postNO2, lat_full, lng_full, 
-            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, lat_full[-1])        
+            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, lat_full[-1])
+        preNO2apr, lat, lng = find_grid_in_bb(preNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, lat_full[-1])
+        postNO2apr, lat, lng = find_grid_in_bb(postNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, lat_full[-1])
+        allNO2, lat, lng = find_grid_in_bb(allNO2, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, lat_full[-1])
     elif (min_lats-0.25 < lat_full[0]):
         preNO2, lat, lng = find_grid_in_bb(preNO2, lat_full, lng_full, 
             min_lngs-0.25, max_lngs+0.25, lat_full[0], max_lats+0.25)
         postNO2, lat, lng = find_grid_in_bb(postNO2, lat_full, lng_full, 
             min_lngs-0.25, max_lngs+0.25, lat_full[0], max_lats+0.25)
+        preNO2apr, lat, lng = find_grid_in_bb(preNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, lat_full[0], max_lats+0.25)
+        postNO2apr, lat, lng = find_grid_in_bb(postNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, lat_full[0], max_lats+0.25)
+        allNO2, lat, lng = find_grid_in_bb(allNO2, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, lat_full[0], max_lats+0.25)
     elif (max_lngs+0.25 > lng_full[-1]):
         preNO2, lat, lng = find_grid_in_bb(preNO2, lat_full, lng_full, 
             min_lngs-0.25, lng_full[-1], min_lats-0.25, max_lats+0.25)
         postNO2, lat, lng = find_grid_in_bb(postNO2, lat_full, lng_full, 
-            min_lngs-0.25, lng_full[-1], min_lats-0.25, max_lats+0.25)        
+            min_lngs-0.25, lng_full[-1], min_lats-0.25, max_lats+0.25)
+        preNO2apr, lat, lng = find_grid_in_bb(preNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, lng_full[-1], min_lats-0.25, max_lats+0.25)
+        postNO2apr, lat, lng = find_grid_in_bb(postNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, lng_full[-1], min_lats-0.25, max_lats+0.25)
+        allNO2, lat, lng = find_grid_in_bb(allNO2, lat_full, lng_full, 
+            min_lngs-0.25, lng_full[-1], min_lats-0.25, max_lats+0.25)
     elif (min_lngs-0.25 < lng_full[0]):
         preNO2, lat, lng = find_grid_in_bb(preNO2, lat_full, lng_full, 
             lng_full[0], max_lngs+0.25, min_lats-0.25, max_lats+0.25)
         postNO2, lat, lng = find_grid_in_bb(postNO2, lat_full, lng_full, 
+            lng_full[0], max_lngs+0.25, min_lats-0.25, max_lats+0.25)
+        preNO2apr, lat, lng = find_grid_in_bb(preNO2apr, lat_full, lng_full, 
+            lng_full[0], max_lngs+0.25, min_lats-0.25, max_lats+0.25)
+        postNO2apr, lat, lng = find_grid_in_bb(postNO2apr, lat_full, lng_full, 
+            lng_full[0], max_lngs+0.25, min_lats-0.25, max_lats+0.25)
+        allNO2, lat, lng = find_grid_in_bb(allNO2, lat_full, lng_full, 
             lng_full[0], max_lngs+0.25, min_lats-0.25, max_lats+0.25)        
     else:    
         preNO2, lat, lng = find_grid_in_bb(preNO2, lat_full, lng_full, 
             min_lngs-0.25, max_lngs+0.25, min_lats-0.25, max_lats+0.25)
         postNO2, lat, lng = find_grid_in_bb(postNO2, lat_full, lng_full, 
             min_lngs-0.25, max_lngs+0.25, min_lats-0.25, max_lats+0.25)
+        preNO2apr, lat, lng = find_grid_in_bb(preNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, max_lats+0.25)
+        postNO2apr, lat, lng = find_grid_in_bb(postNO2apr, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, max_lats+0.25)
+        allNO2, lat, lng = find_grid_in_bb(allNO2, lat_full, lng_full, 
+            min_lngs-0.25, max_lngs+0.25, min_lats-0.25, max_lats+0.25)        
     print('# # # # # TROPOMI NO2 files read! # # # # #')
     time.sleep(2)
     
@@ -472,9 +419,9 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         # If there are no TROPOMI grid cells within census tract, fill row 
         # corresponding to tract with NaNs for all variables
         if (len(i_inside)==0) or (len(j_inside)==0):
-            dicttemp = {'GEOID': geoid, 'PRENO2': np.nan, 'POSTNO2': np.nan}
-            # for var in var_extract:
-            #     dicttemp[var] = np.nan
+            dicttemp = {'GEOID':geoid, 'PRENO2':np.nan, 'POSTNO2':np.nan,
+                'PRENO2APR':np.nan, 'POSTNO2APR':np.nan, 'ALLNO2':np.nan
+                }
             for var in var_extract:
                 dicttemp[var] = tract_nhgis[var].values[0]        
             df.append(dicttemp)   
@@ -484,8 +431,13 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         else: 
             preNO2_inside = np.nanmean(preNO2[i_inside, j_inside])
             postNO2_inside = np.nanmean(postNO2[i_inside, j_inside])
-            dicttemp = {'GEOID': geoid, 'PRENO2': preNO2_inside, 
-                'POSTNO2': postNO2_inside}
+            preNO2apr_inside = np.nanmean(preNO2apr[i_inside, j_inside])
+            postNO2apr_inside = np.nanmean(postNO2apr[i_inside, j_inside])
+            allNO2_inside = np.nanmean(allNO2[i_inside, j_inside])
+            dicttemp = {'GEOID':geoid, 'PRENO2':preNO2_inside, 
+                'POSTNO2':postNO2_inside, 'PRENO2APR':preNO2apr_inside,
+                'POSTNO2APR':postNO2apr_inside, 'ALLNO2':allNO2
+                }
             for var in var_extract:
                 dicttemp[var] = tract_nhgis[var].values[0]
             df.append(dicttemp)               
@@ -500,7 +452,7 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     # Save DataFrame
     #----------------------
     df = df.replace('NaN', '', regex=True)
-    df.to_csv(DIR_OUT+'Tropomi_NO2_%s_%s'%(sFIPS,censusfile), sep = ',')
+    df.to_csv(DIR_OUT+'Tropomi_NO2_%s_%s_update'%(sFIPS,censusfile), sep = ',')
     print('# # # # # Output file written! # # # # #')  
     
     # If desired, maps of all variables will be plotted 
@@ -598,5 +550,8 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     return
 
 censusfile = 'nhgis0003_ds239_20185_2018_tract.csv'
-for state in ['41']:
+states = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13',
+    '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26']
+
+for state in states:
     harmonize_tropomino2_census(state, censusfile)

@@ -9,6 +9,16 @@ to a .csv file.
 Todo:
     Automate processing different states
 """
+
+DIR_NO2 = '/Users/ghkerr/GW/data/'
+DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
+DIR_OUT = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+# DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
+# DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
+# DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
+# DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
+
 def geo_idx(dd, dd_array):
     """Function searches for nearest decimal degree in an array of decimal 
     degrees and returns the index. np.argmin returns the indices of minimum 
@@ -148,16 +158,6 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     import cartopy.crs as ccrs
     import shapefile
     from shapely.geometry import shape, Point
-    
-    DIR_NO2 = '/Users/ghkerr/GW/data/'
-    DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
-    DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
-    DIR_OUT = '/Users/ghkerr/Desktop/'
-    # DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
-    # DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
-    # DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
-    # DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
-    
     # Read in census tract information from https://www.nhgis.org
     #----------------------
     nhgis = pd.read_csv(DIR_CENSUS+censusfile, delimiter=',', header=0, 
@@ -549,9 +549,16 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     print('# # # # # checkplotfile saved! # # # # #')  
     return
 
-censusfile = 'nhgis0003_ds239_20185_2018_tract.csv'
-states = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13',
-    '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26']
+# censusfile = 'nhgis0003_ds239_20185_2018_tract.csv'
+# states = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13',
+#     '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26']
+# for state in states:
+#     harmonize_tropomino2_census(state, censusfile)
 
-for state in states:
-    harmonize_tropomino2_census(state, censusfile)
+FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+        '51', '53', '54', '55', '56']
+FIPS = ['01']
+harmonized_vehicleownership_roaddensity(FIPS)

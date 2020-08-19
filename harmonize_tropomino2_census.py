@@ -10,14 +10,15 @@ Todo:
     Automate processing different states
 """
 
-DIR_NO2 = '/Users/ghkerr/GW/data/'
-DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
-DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
-DIR_OUT = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
-# DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
-# DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
-# DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
-# DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
+# DIR_NO2 = '/Users/ghkerr/GW/data/'
+# DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+# DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
+# DIR_OUT = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
+DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
+DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
+DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/update/'
+from multiprocessing import Pool
 
 def geo_idx(dd, dd_array):
     """Function searches for nearest decimal degree in an array of decimal 
@@ -116,7 +117,7 @@ def find_grid_in_bb(ingrid, lat, lng, left, right, down, up):
     lng = lng[left:right+1]
     return outgrid, lat, lng
 
-def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
+def harmonize_tropomino2_census(sFIPS, checkplot=False):
     """For a particular state, function extracts census tracts and determines
     the pre- and post-COVID lockdown NO2 retrievals and demographic information
     within the tract. Note that the variable "var_extract" should be 
@@ -132,13 +133,6 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         function. For a list of FIPS codes, see: 
         https://en.wikipedia.org/wiki/
         Federal_Information_Processing_Standard_state_code
-    censusfile : str
-        Name of file containing NHGIS-created file. Name of file appears to 
-        be related to the number of files downloaded from NHGIS (nhgisXXXX, 
-        where XXXX is the number of files downloaded on account). The key to 
-        the unique, NHGIS-created column names is found in the Codebook file(s) 
-        automatically downloaded with data extract. See: 
-        https://www.nhgis.org/support/faq#what_do_field_names_mean
     checkplot : bool
         If true, a multi-figure PDF will be output with maps of each extracted
         variable at the tract-level and gridded NO2 and tract-level NO2.
@@ -159,7 +153,14 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     import shapefile
     from shapely.geometry import shape, Point
     # Read in census tract information from https://www.nhgis.org
+    # Name of file containing NHGIS-created file. Name of file appears to 
+    # be related to the number of files downloaded from NHGIS (nhgisXXXX, 
+    # where XXXX is the number of files downloaded on account). The key to 
+    # the unique, NHGIS-created column names is found in the Codebook file(s) 
+    # automatically downloaded with data extract. See: 
+    # https://www.nhgis.org/support/faq#what_do_field_names_mean
     #----------------------
+    censusfile = 'nhgis0003_ds239_20185_2018_tract.csv'
     nhgis = pd.read_csv(DIR_CENSUS+censusfile, delimiter=',', header=0, 
         engine='python')
     # Variables to be extracted from census tract file (see .txt file for 
@@ -436,7 +437,7 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
             allNO2_inside = np.nanmean(allNO2[i_inside, j_inside])
             dicttemp = {'GEOID':geoid, 'PRENO2':preNO2_inside, 
                 'POSTNO2':postNO2_inside, 'PRENO2APR':preNO2apr_inside,
-                'POSTNO2APR':postNO2apr_inside, 'ALLNO2':allNO2
+                'POSTNO2APR':postNO2apr_inside, 'ALLNO2':allNO2_inside
                 }
             for var in var_extract:
                 dicttemp[var] = tract_nhgis[var].values[0]
@@ -452,7 +453,7 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     # Save DataFrame
     #----------------------
     df = df.replace('NaN', '', regex=True)
-    df.to_csv(DIR_OUT+'Tropomi_NO2_%s_%s_update'%(sFIPS,censusfile), sep = ',')
+    df.to_csv(DIR_OUT+'Tropomi_NO2_%s_%s'%(sFIPS,censusfile), sep = ',')
     print('# # # # # Output file written! # # # # #')  
     
     # If desired, maps of all variables will be plotted 
@@ -549,16 +550,15 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     print('# # # # # checkplotfile saved! # # # # #')  
     return
 
-# censusfile = 'nhgis0003_ds239_20185_2018_tract.csv'
-# states = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13',
-#     '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26']
-# for state in states:
-#     harmonize_tropomino2_census(state, censusfile)
-
 FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
         '51', '53', '54', '55', '56']
-FIPS = ['01']
-harmonized_vehicleownership_roaddensity(FIPS)
+# for state in FIPS:
+    
+if __name__ == '__main__':
+    with Pool(processes=8) as pool:
+        pool.map(harmonize_tropomino2_census, FIPS)    
+    
+    # harmonize_tropomino2_census(state)

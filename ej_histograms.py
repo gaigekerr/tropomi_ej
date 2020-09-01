@@ -17,6 +17,20 @@ ptile_upper = 90
 ptile_lower = 10
 missingdata = 'darkgrey'
 
+# Load font
+import sys
+if 'mpl' not in sys.modules:
+    import matplotlib.font_manager
+    prop = matplotlib.font_manager.FontProperties(
+            fname='/Users/ghkerr/Library/Fonts/cmunbmr.ttf')
+    matplotlib.rcParams['font.family'] = prop.get_name()
+    prop = matplotlib.font_manager.FontProperties(
+        fname='/Users/ghkerr/Library/Fonts/cmunbbx.ttf')
+    matplotlib.rcParams['mathtext.bf'] = prop.get_name()
+    prop = matplotlib.font_manager.FontProperties(
+        fname='/Users/ghkerr/Library/Fonts/cmunbmr.ttf')
+    matplotlib.rcParams['mathtext.it'] = prop.get_name()
+
 # import netCDF4 as nc
 # # 13 March - 13 June 2019 and 2020 average NO2
 # no2_pre_dg = nc.Dataset(DIR_TROPOMI+
@@ -733,7 +747,12 @@ def NO2_gridded_tractavg(lng_dg, lat_dg, no2_pre_dg, no2_post_dg, FIPS,
     import matplotlib as mpl
     import cartopy.crs as ccrs
     import cartopy.feature as cfeature
+    import cartopy.io.shapereader as shpreader
     from cartopy.io import shapereader
+    from shapely.geometry import Polygon
+    from cartopy.io import shapereader
+    import cartopy.crs as ccrs
+    import matplotlib.pyplot as plt
     proj = ccrs.PlateCarree(central_longitude=0.0)
     fig = plt.figure(figsize=(8,4))
     ax1 = plt.subplot2grid((2,2),(0,0), projection=ccrs.PlateCarree(
@@ -748,7 +767,7 @@ def NO2_gridded_tractavg(lng_dg, lat_dg, no2_pre_dg, no2_post_dg, FIPS,
     cmapbase = plt.get_cmap('YlGnBu', 12)
     normbase = matplotlib.colors.Normalize(vmin=0e15, vmax=6e15)
     cmaplock = plt.get_cmap('coolwarm', 12)
-    normlock = matplotlib.colors.Normalize(vmin=-1e15, vmax=1e15)
+    normlock = matplotlib.colors.Normalize(vmin=-2e15, vmax=2e15)
     # Plot gridded NO2 retrivals 
     mb1 = ax1.pcolormesh(lng_dg, lat_dg, no2_pre_dg, cmap=cmapbase, 
         norm=normbase, transform=proj, rasterized=True)
@@ -757,8 +776,8 @@ def NO2_gridded_tractavg(lng_dg, lat_dg, no2_pre_dg, no2_post_dg, FIPS,
     for FIPS_i in FIPS: 
         print(FIPS_i)
         # Tigerline shapefile for state
-        shp = shapereader.Reader(DIR_GEO+'tigerline/tl_2019_%s_tract/tl_2019_%s_tract'%(
-            FIPS_i, FIPS_i))
+        shp = shapereader.Reader(DIR_GEO+
+            'tigerline/tl_2019_%s_tract/tl_2019_%s_tract'%(FIPS_i, FIPS_i))
         records = shp.records()
         tracts = shp.geometries()
         for record, tract in zip(records, tracts):
@@ -770,26 +789,39 @@ def NO2_gridded_tractavg(lng_dg, lat_dg, no2_pre_dg, no2_post_dg, FIPS,
             lockdown = harmonized_tract.NO2_ABS.values[0]
             if np.isnan(baseline)==True:
                 ax3.add_geometries(tract, proj, facecolor='grey', 
-                    edgecolor=None)
+                    edgecolor='grey', alpha=1., linewidth=0.1, rasterized=True)
                 ax4.add_geometries(tract, proj, facecolor='grey', 
-                    edgecolor=None)
+                    edgecolor='grey', alpha=1., linewidth=0.1, rasterized=True)
             else:
                 ax3.add_geometries(tract, proj, facecolor=cmapbase(
-                    normbase(baseline)), edgecolor=None, rasterized=True)
+                    normbase(baseline)), edgecolor=cmapbase(
+                    normbase(baseline)), alpha=1., linewidth=0.1, rasterized=True)
                 ax4.add_geometries(tract, proj, facecolor=cmaplock(
-                    normlock(lockdown)), edgecolor=None, rasterized=True) 
+                    normlock(lockdown)), edgecolor=cmaplock(
+                    normlock(lockdown)), alpha=1., linewidth=0.1, rasterized=True)
     # Add borders, set map extent, etc. 
     for ax in [ax1, ax2, ax3, ax4]:
-        # ax.set_extent([-85.,-72., 37, 42.5], proj)
         ax.set_extent([-125,-66.5, 24.5, 49.48], proj)        
         # Add coasts 
         ax.add_feature(cfeature.NaturalEarthFeature('physical', scale='50m',
             facecolor='none', name='coastline', lw=0.25, 
             edgecolor='k'))
-        # Add national borders
-        ax.add_feature(cfeature.NaturalEarthFeature('cultural', 
-            'admin_0_countries', '50m', edgecolor='k', lw=0.25, 
-            facecolor='none'))
+        # # Add national borders
+        # ax.add_feature(cfeature.NaturalEarthFeature('cultural', 
+        #     'admin_0_countries', '50m', edgecolor='k', lw=0.25, 
+        #     facecolor='none'))
+        # Color all countries besides U.S.
+        shpfilename = shpreader.natural_earth(resolution='50m',
+            category='cultural', name='admin_0_countries')
+        reader = shpreader.Reader(shpfilename)
+        countries = reader.records()               
+        for country in countries:
+            if country.attributes['ADM0_A3'] != 'USA':
+                ax.add_geometries(country.geometry, ccrs.PlateCarree(),
+                    facecolor='w', edgecolor='w', lw=0., zorder=100)
+            else: 
+                ax.add_geometries(country.geometry, ccrs.PlateCarree(),
+                    facecolor='None', edgecolor='k', lw=0.25, zorder=100)                
         # Add states
         ax.add_feature(cfeature.NaturalEarthFeature('cultural', 
             'admin_1_states_provinces_lines', '50m', edgecolor='k', lw=0.25, 
@@ -823,7 +855,7 @@ def NO2_gridded_tractavg(lng_dg, lat_dg, no2_pre_dg, no2_post_dg, FIPS,
         label='$\Delta\:$NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]')
     caxbase.xaxis.offsetText.set_visible(False)
     plt.subplots_adjust(bottom=0.2, top=0.95)
-    plt.savefig(DIR_FIGS+'NO2_gridded_tractavg_absolute.png', dpi=600)
+    plt.savefig(DIR_FIGS+'NO2_gridded_tractavg_absolute.pdf', dpi=600)
     return
 
 def map_no2historic_no2gains(mostno2, leastno2, increaseno2, decreaseno2, 
@@ -2167,17 +2199,17 @@ def hist_demographics_urbanmissing(harmonized_urban):
     plt.savefig(DIR_FIGS+'hist_demographics_urbanmissing.png', dpi=600)
     return
     
-# FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
-#         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
-#         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
-#         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
-#         '51', '53', '54', '55', '56']
-# harmonized = open_census_no2_harmonzied(FIPS)
-# # Add vehicle ownership/road density data
-# harmonized = merge_harmonized_vehicleownership(harmonized)
-# # Split into rural and urban tracts
-# harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
-#     harmonized)
+FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+        '51', '53', '54', '55', '56']
+harmonized = open_census_no2_harmonzied(FIPS)
+# Add vehicle ownership/road density data
+harmonized = merge_harmonized_vehicleownership(harmonized)
+# Split into rural and urban tracts
+harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
+    harmonized)
 # # Calculate percentage of tracts without co-located TROPOMI retrievals 
 # print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
 #     harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
@@ -2222,6 +2254,17 @@ def hist_demographics_urbanmissing(harmonized_urban):
 
 # hist_demographics_urbanmissing(harmonized_urban)
 
+
+
+
+
+
+
+
+
+
+
+
 """ XXX"""
 # harmonized = harmonized_urban 
 # import numpy as np
@@ -2238,6 +2281,8 @@ def hist_demographics_urbanmissing(harmonized_urban):
 # byeducation_cilow, byeducation_cihigh = [], []
 # priroad_byethnicity = []
 # byethnicity_cilow, byethnicity_cihigh = [], []
+# priroad_byvehicle = []
+# byvehicle_cilow, byvehicle_cihigh = [], []
 # pri_density_mean = []
 # dno2_mean = []
 # ci_low, ci_high = [], []
@@ -2259,6 +2304,7 @@ def hist_demographics_urbanmissing(harmonized_urban):
 # race = (harmonized['AJWNE002']/harmonized['AJWBE001'])
 # education = (harmonized.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/harmonized['AJYPE001'])
 # ethnicity = (harmonized['AJWWE002']/harmonized['AJWWE001'])
+# vehicle = 1-harmonized['FracNoCar']
 # for ptilel, ptileu in zip(np.arange(0,100,10), np.arange(10,110,10)):    
 #     # Primary road density and confidence intervals by income
 #     decile_income = harmonized.loc[(income>
@@ -2300,6 +2346,16 @@ def hist_demographics_urbanmissing(harmonized_urban):
 #     priroad_byethnicity.append(decile_ethnicity['PrimaryWithin1'].mean())    
 #     byethnicity_cilow.append(ci[0])
 #     byethnicity_cihigh.append(ci[1])
+#     # By vehicle ownership
+#     decile_vehicle = harmonized.loc[(vehicle>
+#         np.nanpercentile(vehicle, ptilel)) & (
+#         vehicle<=np.nanpercentile(vehicle, ptileu))]    
+#     ci = st.t.interval(0.95, len(decile_vehicle)-1, 
+#         loc=np.mean(decile_vehicle['PrimaryWithin1']), scale=st.sem(
+#         decile_vehicle['PrimaryWithin1']))
+#     priroad_byvehicle.append(decile_vehicle['PrimaryWithin1'].mean())    
+#     byvehicle_cilow.append(ci[0])
+#     byvehicle_cihigh.append(ci[1])    
 # # Initialize figure, axis
 # fig = plt.figure(figsize=(8,5))
 # ax1 = plt.subplot2grid((1,1),(0,0))
@@ -2308,6 +2364,7 @@ def hist_demographics_urbanmissing(harmonized_urban):
 # color2 = '#FF7043'
 # color3 = '#8da0cb'
 # color4 = '#e78ac3'
+# color5 = '#a6d854'
 # # Plotting
 # ax1.plot(pri_density_mean, lw=2, marker='o', 
 #     markeredgecolor=color_density, markerfacecolor='w', zorder=10,
@@ -2318,22 +2375,31 @@ def hist_demographics_urbanmissing(harmonized_urban):
 # ax1.plot(priroad_byeducation, ls='-', lw=2, color=color2, zorder=11)
 # ax1.plot(priroad_byrace, ls='-', lw=2, color=color3, zorder=11)
 # ax1.plot(priroad_byethnicity, ls='-', lw=2, color=color4, zorder=11)
+# ax1.plot(priroad_byvehicle, ls='-', lw=2, color=color5, zorder=11)
 # # Legend
-# ax1.annotate('Larger NO$_{2}$ decrease', xy=(1.2,0.6), xytext=(2.6,0.6), 
-#     color=color_density, arrowprops={'arrowstyle': '->', 'lw': 4, 
-#     'color':color_density}, va='center')
-# ax1.annotate('Lower Income', xy=(1.2,0.57), xytext=(2.6,0.57), color=color1,
-#             arrowprops={'arrowstyle': '->', 'lw': 4, 'color':color1},
-#             va='center')
-# ax1.annotate('Less Educated', xy=(1.2,0.54), xytext=(2.6,0.54), color=color2,
-#             arrowprops={'arrowstyle': '->', 'lw': 4, 'color':color2},
-#             va='center')
-# ax1.annotate('Less White', xy=(1.2,0.51), xytext=(2.6,0.51), color=color3,
-#             arrowprops={'arrowstyle': '->', 'lw': 4, 'color':color3},
-#             va='center')
-# ax1.annotate('More Hispanic', xy=(1.2,0.48), xytext=(2.6,0.48), color=color4,
-#             arrowprops={'arrowstyle': '->', 'lw': 4, 'color':color4},
-#             va='center')
+# ax1.text(1, 0.62, 'Largest NO$_{2}$ decrease', fontsize=12, 
+#     color=color_density)
+# ax1.text(1, 0.585, 'Lowest income', fontsize=12, 
+#     color=color1)
+# ax1.text(1, 0.55, 'Least educated', fontsize=12, 
+#     color=color2)
+# ax1.text(1, 0.515, 'Least White', fontsize=12, 
+#     color=color3)
+# ax1.text(1, 0.48, 'Most Hispanic', fontsize=12, 
+#     color=color4)
+# ax1.text(1, 0.445, 'Lowest vehicle ownership', fontsize=12, color=color5)
+# ax1.text(8.8, 0.62, 'Smallest NO$_{2}$ decrease', fontsize=12, 
+#     color=color_density, ha='right')
+# ax1.text(8.8, 0.585, 'Largest income', fontsize=12, 
+#     color=color1, ha='right')
+# ax1.text(8.8, 0.55, 'Most educated', fontsize=12, 
+#     color=color2, ha='right')
+# ax1.text(8.8, 0.515, 'Most White', fontsize=12, 
+#     color=color3, ha='right')
+# ax1.text(8.8, 0.48, 'Least Hispanic', fontsize=12, 
+#     color=color4, ha='right')
+# ax1.text(8.8, 0.445, 'Highest vehicle ownership', fontsize=12, color=color5,
+#     ha='right')
 # # Aesthetics 
 # ax1.set_xlim([0,9])
 # ax1.set_xticks(np.arange(0,10,1))
@@ -3259,3 +3325,371 @@ def hist_demographics_urbanmissing(harmonized_urban):
 # # ax5.set_title('(e)',loc='left')
 # plt.savefig('/Users/ghkerr/Desktop/detroitcasestudy.png', dpi=600)
 # # plt.show()
+
+
+
+
+""" FIGURE 1 """
+# import netCDF4 as nc
+# import numpy as np
+# import matplotlib
+# import matplotlib.pyplot as plt
+# import matplotlib.gridspec as gridspec
+# from decimal import Decimal
+# import matplotlib as mpl
+# import cartopy.crs as ccrs
+# import cartopy.feature as cfeature
+# import cartopy.io.shapereader as shpreader
+# from cartopy.io import shapereader
+# from shapely.geometry import Polygon
+# import cartopy.io.img_tiles as cimgt
+# import cartopy.crs as ccrs
+# def rect_from_bound(xmin, xmax, ymin, ymax):
+#     """Returns list of (x,y)'s for a rectangle"""
+#     xs = [xmax, xmin, xmin, xmax, xmax]
+#     ys = [ymax, ymax, ymin, ymin, ymax]
+#     return [(x, y) for x, y in zip(xs, ys)]
+# proj = ccrs.PlateCarree(central_longitude=0.0)
+# fig = plt.figure(figsize=(9,6))
+# # Maps
+# ax1 = plt.subplot2grid((5,2),(0,0), projection=ccrs.PlateCarree(
+#     central_longitude=0.), rowspan=2)
+# ax2 = plt.subplot2grid((5,2),(0,1), projection=ccrs.PlateCarree(
+#     central_longitude=0.), rowspan=2)
+# # Bar charts
+# ax3 = plt.subplot2grid((5,2),(2,0))
+# ax4 = plt.subplot2grid((5,2),(2,1))
+# ax5 = plt.subplot2grid((5,2),(3,0))
+# ax6 = plt.subplot2grid((5,2),(3,1))
+# ax7 = plt.subplot2grid((5,2),(4,0))
+# ax8 = plt.subplot2grid((5,2),(4,1))
+# # Create discrete colormaps
+# cmapbase = plt.get_cmap('YlGnBu', 12)
+# normbase = matplotlib.colors.Normalize(vmin=0e15, vmax=6e15)
+# cmaplock = plt.get_cmap('coolwarm', 12)
+# normlock = matplotlib.colors.Normalize(vmin=-2e15, vmax=2e15)
+# for FIPS_i in FIPS: 
+#     print(FIPS_i)
+#     # Tigerline shapefile for state
+#     shp = shapereader.Reader(DIR_GEO+
+#         'tigerline/tl_2019_%s_tract/tl_2019_%s_tract'%(FIPS_i, FIPS_i))
+#     records = shp.records()
+#     tracts = shp.geometries()
+#     for record, tract in zip(records, tracts):
+#         # Find GEOID of tract
+#         gi = record.attributes['GEOID']
+#         # Look up harmonized NO2-census data for tract
+#         harmonized_tract = harmonized.loc[harmonized.index.isin([gi])]
+#         baseline = harmonized_tract.PRENO2.values[0]
+#         lockdown = harmonized_tract.NO2_ABS.values[0]
+#         if np.isnan(baseline)==True:
+#             ax1.add_geometries(tract, proj, facecolor='darkgrey', 
+#                 edgecolor='darkgrey', alpha=1., linewidth=0.1, rasterized=True)
+#             ax2.add_geometries(tract, proj, facecolor='darkgrey', 
+#                 edgecolor='darkgrey', alpha=1., linewidth=0.1, rasterized=True)
+#         else:
+#             ax1.add_geometries(tract, proj, facecolor=cmapbase(
+#                 normbase(baseline)), edgecolor=cmapbase(
+#                 normbase(baseline)), alpha=1., linewidth=0.1, rasterized=True)
+#             ax2.add_geometries(tract, proj, facecolor=cmaplock(
+#                 normlock(lockdown)), edgecolor=cmaplock(
+#                 normlock(lockdown)), alpha=1., linewidth=0.1, rasterized=True)
+# shpfilename = shapereader.natural_earth('10m', 'cultural', 
+#     'admin_0_countries')
+# reader = shpreader.Reader(shpfilename)
+# countries = reader.records()   
+# # Get location of U.S.
+# usa = [x.attributes['ADM0_A3'] for x in countries]
+# usa = np.where(np.array(usa)=='USA')[0][0]
+# usa = list(reader.geometries())[usa]   
+# # Load lakes 
+# lakes = shapereader.natural_earth('10m', 'physical', 'lakes')
+# lakes_reader = shpreader.Reader(lakes)
+# lakes = lakes_reader.records()   
+# lake_names = [x.attributes['name'] for x in lakes]
+# great_lakes = np.where((np.array(lake_names)=='Lake Superior') |
+#     (np.array(lake_names)=='Lake Michigan') | 
+#     (np.array(lake_names)=='Lake Huron') |
+#     (np.array(lake_names)=='Lake Erie') |
+#     (np.array(lake_names)=='Lake Ontario'))[0]
+# great_lakes = np.array(list(lakes_reader.geometries()))[great_lakes]
+# # Projection
+# st_proj = ccrs.Mercator(central_longitude=0.0)#stamen_terrain.crs  #projection used by Stamen images
+# pad1 = 1.  #padding, degrees unit
+# exts = [usa[0].bounds[0] - pad1, usa[0].bounds[2] + pad1, 
+#         usa[0].bounds[1] - pad1, usa[0].bounds[3] + pad1]
+# # Make a mask polygon by polygon's difference operation; base polygon 
+# # is a rectangle, another polygon is simplified switzerland
+# msk = Polygon(rect_from_bound(*exts)).difference(usa[0].simplify(0.01))
+# # Project geometry to the projection used by stamen
+# msk_stm  = st_proj.project_geometry(msk, proj)
+# # Add borders, set map extent, etc. 
+# for ax in [ax1, ax2]:
+#     ax.set_extent([-125,-66.5, 24.5, 49.48], proj)       
+#     ax.add_geometries(usa, crs=proj, lw=0.25, facecolor='None', 
+#         edgecolor='k', zorder=15)
+#     # Plot the mask
+#     ax.add_geometries(msk_stm, st_proj, zorder=12, facecolor='w', 
+#         edgecolor='None', alpha=1.)             
+#     # Add states
+#     ax.add_feature(cfeature.NaturalEarthFeature('cultural', 
+#         'admin_1_states_provinces_lines', '10m', edgecolor='k', lw=0.25, 
+#         facecolor='none'))
+#     # Add Great Lakes
+#     ax.add_geometries(great_lakes, crs=ccrs.PlateCarree(), 
+#         facecolor='w', lw=0.25, edgecolor='black', alpha=1., zorder=17)
+#     ax.background_patch.set_visible(False)
+#     ax.outline_patch.set_visible(False)
+# # # # # Bar charts for demographics
+# harmonized = harmonized_urban
+# colors = ['#7fa5c2','darkgrey','#e7ac56']
+# # Largest, smallest and median gains
+# increaseno2 = harmonized.loc[harmonized['NO2_ABS']>
+#     np.nanpercentile(harmonized['NO2_ABS'], ptile_upper)]
+# medianno2 = harmonized.loc[(harmonized['NO2_ABS']>
+#     np.nanpercentile(harmonized['NO2_ABS'], 45)) & (harmonized['NO2_ABS']<=
+#     np.nanpercentile(harmonized['NO2_ABS'], 55))]
+# decreaseno2 = harmonized.loc[harmonized['NO2_ABS']<
+#     np.nanpercentile(harmonized['NO2_ABS'], ptile_lower)]
+
+# # # # # Change in NO2
+# # Urban 
+# ax3.barh([2,1,0], [decreaseno2['NO2_ABS'].mean(), medianno2['NO2_ABS'].mean(), 
+#     increaseno2['NO2_ABS'].mean()], color=colors[0])
+# print('Largest gains for NO2 = %.2E'%Decimal(decreaseno2['NO2_ABS'].mean()))
+# ax3.text(decreaseno2['NO2_ABS'].mean()+2e13, 2, '-2.9', color='black', 
+#     va='center')
+# print('Largest gains for NO2 = %.2E'%Decimal(medianno2['NO2_ABS'].mean()))
+# ax3.text(medianno2['NO2_ABS'].mean()+2e13, 1, '-0.6', color='black', 
+#     va='center')
+# print('Smallest gains for NO2 = %.2E'%Decimal(increaseno2['NO2_ABS'].mean()))
+# ax3.text(increaseno2['NO2_ABS'].mean()+2e13, 0, '0.08', color='black', 
+#     va='center')
+# # # # # Income
+# ax5.barh([2,1,0], [decreaseno2['AJZAE001'].mean(), 
+#     medianno2['AJZAE001'].mean(), increaseno2['AJZAE001'].mean()], 
+#     color=colors[0])
+# ax5.text(60000, 2, ' %d'%(decreaseno2['AJZAE001'].mean()), color='black', 
+#     va='center')
+# ax5.text(60000, 1, ' %d'%(medianno2['AJZAE001'].mean()), color='black', 
+#     va='center')
+# ax5.text(60000, 0, ' %d'%(increaseno2['AJZAE001'].mean()), color='black', 
+#     va='center')
+    
+# # # # # Racial background
+# left, i = 0, 0
+# labels = ['White', 'Black', 'Other']
+# # Largest gains
+# for data, color in zip([(decreaseno2['AJWNE002']/
+#     decreaseno2['AJWBE001']).mean(),
+#     (decreaseno2['AJWNE003']/decreaseno2['AJWBE001']).mean(),      
+#     ((decreaseno2['AJWNE004']+decreaseno2['AJWNE005']+
+#       decreaseno2['AJWNE006']+decreaseno2['AJWNE007']+
+#     decreaseno2['AJWNE008'])/decreaseno2['AJWBE001']).mean()], colors):             
+#     ax7.barh(2, data, color=color, left=left)
+#     ax7.text(left+0.01, 2, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center')
+#     left += data
+#     i = i+1
+# # Median gains    
+# left, i = 0, 0
+# for data, color in zip([(medianno2['AJWNE002']/
+#     medianno2['AJWBE001']).mean(),
+#     (medianno2['AJWNE003']/medianno2['AJWBE001']).mean(),      
+#     ((medianno2['AJWNE004']+medianno2['AJWNE005']+
+#       medianno2['AJWNE006']+medianno2['AJWNE007']+
+#     medianno2['AJWNE008'])/medianno2['AJWBE001']).mean()], colors):             
+#     ax7.barh(1, data, color=color, left=left)
+#     ax7.text(left+0.01, 1, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center')    
+#     left += data
+#     i = i+1    
+# # Smallest gains
+# left, i = 0, 0
+# for data, color in zip([(increaseno2['AJWNE002']/
+#     increaseno2['AJWBE001']).mean(),
+#     (increaseno2['AJWNE003']/increaseno2['AJWBE001']).mean(),      
+#     ((increaseno2['AJWNE004']+increaseno2['AJWNE005']+
+#       increaseno2['AJWNE006']+increaseno2['AJWNE007']+
+#     increaseno2['AJWNE008'])/increaseno2['AJWBE001']).mean()], colors):             
+#     ax7.barh(0, data, color=color, left=left)
+#     ax7.text(left+0.01, 0, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center')    
+#     ax7.text(left+0.01, -1, labels[i], color=colors[i], va='center',
+#         fontweight='bold')
+#     left += data       
+#     i = i+1    
+
+# # # # # Ethnic background
+# # Largest gains
+# left, i = 0, 0
+# labels = ['Hispanic', 'Non-Hispanic']
+# for data, color in zip([(decreaseno2['AJWWE003']/
+#     decreaseno2['AJWWE001']).mean(),
+#     (decreaseno2['AJWWE002']/decreaseno2['AJWWE001']).mean()], colors):             
+#     ax4.barh(2, data, color=color, left=left)
+#     ax4.text(left+0.01, 2, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center')
+#     left += data
+#     i = i+1
+# # Median gains    
+# left, i = 0, 0
+# for data, color in zip([(medianno2['AJWWE003']/
+#     medianno2['AJWWE001']).mean(),
+#     (medianno2['AJWWE002']/medianno2['AJWWE001']).mean()], colors):             
+#     ax4.barh(1, data, color=color, left=left)
+#     ax4.text(left, 1, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center')
+#     left += data
+#     i = i+1
+# # Median gains
+# left, i = 0, 0
+# for data, color in zip([(increaseno2['AJWWE003']/
+#     increaseno2['AJWWE001']).mean(),
+#     (increaseno2['AJWWE002']/increaseno2['AJWWE001']).mean()], colors): 
+#     ax4.barh(0, data, color=color, left=left)
+#     ax4.text(left+0.01, 0, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center')    
+#     ax4.text(left+0.01, -1, labels[i], color=colors[i], va='center',
+#         fontweight='bold')              
+#     left += data
+#     i = i+1
+    
+# # # # # Educational attainment
+# # Largest gains
+# left = 0
+# i = 0
+# for data, color in zip([
+#     (decreaseno2.loc[:,'AJYPE002':'AJYPE018'].sum(axis=1)/
+#     decreaseno2['AJYPE001']).mean(),
+#     (decreaseno2.loc[:,'AJYPE019':'AJYPE022'].sum(axis=1)/
+#     decreaseno2['AJYPE001']).mean(),
+#     (decreaseno2.loc[:,'AJYPE023':'AJYPE025'].sum(axis=1)/
+#     decreaseno2['AJYPE001']).mean()], colors):             
+#     ax6.barh(2, data, color=color, left=left)
+#     ax6.text(left+0.01, 2, '%d'%(np.round(data,2)*100), 
+#         color='black', va='center') 
+#     left += data
+#     i = i+1    
+# # Median gains
+# left = 0
+# i = 0
+# for data, color in zip([
+#     (medianno2.loc[:,'AJYPE002':'AJYPE018'].sum(axis=1)/
+#     medianno2['AJYPE001']).mean(),
+#     (medianno2.loc[:,'AJYPE019':'AJYPE022'].sum(axis=1)/
+#     medianno2['AJYPE001']).mean(),
+#     (medianno2.loc[:,'AJYPE023':'AJYPE025'].sum(axis=1)/
+#     medianno2['AJYPE001']).mean()], colors):             
+#     ax6.barh(1, data, color=color, left=left)
+#     ax6.text(left+0.01, 1, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center') 
+#     left += data
+#     i = i+1        
+# # Smallest gains
+# left = 0
+# i = 0
+# labels = ['High school', 'College', 'Graduate']
+# for data, color in zip([
+#     (increaseno2.loc[:,'AJYPE002':'AJYPE018'].sum(axis=1)/
+#     increaseno2['AJYPE001']).mean(),
+#     (increaseno2.loc[:,'AJYPE019':'AJYPE022'].sum(axis=1)/
+#     increaseno2['AJYPE001']).mean(),
+#     (increaseno2.loc[:,'AJYPE023':'AJYPE025'].sum(axis=1)/
+#     increaseno2['AJYPE001']).mean()], colors):             
+#     ax6.barh(0, data, color=color, left=left)
+#     ax6.text(left+0.01, 0, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center')
+#     if i==2:
+#         ax6.text(0.82, -1, labels[i], color=colors[i], va='center',
+#             fontweight='bold', fontsize=10)         
+#     else:   
+#         ax6.text(left, -1, labels[i], color=colors[i], va='center',
+#             fontweight='bold', fontsize=10) 
+#     left += data
+#     i = i+1  
+      
+# # # # # Vehicle ownership
+# # Largest gains
+# left = 0
+# i = 0
+# labels = ['None', 'One or more']
+# for data, color in zip([decreaseno2['FracNoCar'].mean(),
+#     (1-decreaseno2['FracNoCar'].mean())], colors):             
+#     ax8.barh(2, data, color=color, left=left)
+#     ax8.text(left+0.01, 2, '%d'%(np.round(data,2)*100),
+#         color='black', va='center') 
+#     left += data
+#     i = i+1        
+# # Median gains
+# left = 0
+# i = 0
+# for data, color in zip([medianno2['FracNoCar'].mean(),
+#     (1-medianno2['FracNoCar'].mean())], colors):                        
+#     ax8.barh(1, data, color=color, left=left)
+#     ax8.text(left+0.01, 1, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center') 
+#     left += data
+#     i = i+1          
+# # Smallest gains
+# left = 0    
+# i = 0
+# for data, color in zip([increaseno2['FracNoCar'].mean(),
+#     (1-increaseno2['FracNoCar'].mean())], colors):             
+#     ax8.barh(0, data, color=color, left=left)
+#     ax8.text(left+0.01, 0, '%d'%(np.round(data,2)*100), color='black', 
+#         va='center') 
+#     ax8.text((left*1.5), -1, labels[i], color=colors[i], va='center',
+#         fontweight='bold', fontsize=10)              
+#     left += data       
+#     i = i+1      
+# # Aesthetics    
+# ax3.set_xlim([-3e15, 1e14])
+# ax3.set_xticks([])    
+# ax5.set_xlim([60000,80000])
+# ax5.set_xticks([])
+# for ax in [ax4,ax6,ax7,ax8]:
+#     ax.set_xlim([0,1.])
+#     ax.set_xticks([])
+#     ax.set_xticklabels([])
+# for ax in [ax3,ax4,ax5,ax6,ax7,ax8]:
+#     ax.set_ylim([-0.5,2.5])
+#     ax.set_yticks([0,1,2])
+#     ax.set_yticklabels([])
+# for ax in [ax3,ax4,ax5,ax6,ax7,ax8]:
+#     for pos in ['right','top','bottom']:
+#         ax.spines[pos].set_visible(False)
+#         ax.spines[pos].set_visible(False)    
+# for ax in [ax3,ax5,ax7]:
+#     ax.set_yticklabels(['Smallest gains', 'Median gains', 'Largest gains'], 
+#         fontsize=10)
+# # Axis titles
+# ax1.set_title('(a) NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', loc='left', 
+#     fontsize=10)
+# ax2.set_title('(b) $\Delta\:$NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', 
+#     loc='left', fontsize=10)
+# ax3.set_title('(c)$\mathregular{\Delta}$ NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', 
+#     loc='left', fontsize=10)
+# ax5.set_title('(e) Household income [$]', loc='left', fontsize=10)
+# ax7.set_title('(g) Racial background [%]', loc='left', fontsize=10)
+# ax4.set_title('(d) Ethnic background [%]', loc='left', fontsize=10)
+# ax6.set_title('(f) Educational attainment [%]',loc='left', fontsize=10)
+# ax8.set_title('(h) Household vehicle ownership [%]',loc='left', fontsize=10)
+# # Adjust subplots
+# plt.subplots_adjust(left=0.12, top=0.95, bottom=0.06, right=0.98, hspace=0.75)
+# # Add Colorbars
+# caxbase = fig.add_axes([ax1.get_position().x0, 
+#     ax1.get_position().y0+0.02, 
+#     (ax1.get_position().x1-ax1.get_position().x0)/2.7, 0.02])
+# cb = mpl.colorbar.ColorbarBase(caxbase, cmap=cmapbase, norm=normbase, 
+#     spacing='proportional', orientation='horizontal', extend='max')
+# caxbase.xaxis.offsetText.set_visible(False)
+# caxbase = fig.add_axes([ax2.get_position().x0, 
+#     ax2.get_position().y0+0.02, 
+#     (ax2.get_position().x1-ax2.get_position().x0)/2.7, 
+#     0.02])
+# cb = mpl.colorbar.ColorbarBase(caxbase, cmap=cmaplock, norm=normlock, 
+#     spacing='proportional', orientation='horizontal', extend='both',
+#     ticks=[-2e15,-1e15,0,1e15,2e15])
+# caxbase.xaxis.offsetText.set_visible(False)
+# plt.savefig(DIR_FIGS+'NO2_gridded_tractavg_absolute.png', dpi=600)

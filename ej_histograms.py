@@ -45,7 +45,7 @@ if 'mpl' not in sys.modules:
 def open_census_no2_harmonzied(FIPS): 
     """Open harmonized TROPOMI NO2 and census csv files for a given state/
     group of states. All columns (besides the column with the FIPS codes) are
-    transformed to floats. An additional column with the percentage change of
+    transformed to floats. An additional column with the absolute change of
     NO2 during the lockdown (spring 2020 vs. spring 2019) is added.
 
     Parameters
@@ -59,7 +59,6 @@ def open_census_no2_harmonzied(FIPS):
         Harmonized tract-level TROPOMI NO2 and census data for state(s) of 
         interest
     """
-    import numpy as np
     import pandas as pd
     # NHGIS census information version (may need to change if there are 
     # updates to census information)
@@ -85,8 +84,6 @@ def open_census_no2_harmonzied(FIPS):
                 state_harm_i[col] = state_harm_i[col].astype(float)
         # Add column for percentage change in NO2 between pre- and post-COVID
         # periods
-        state_harm_i['NO2_PC'] = ((state_harm_i['POSTNO2']-
-            state_harm_i['PRENO2'])/state_harm_i['PRENO2'])*100.
         state_harm_i['NO2_ABS'] = (state_harm_i['POSTNO2']-
             state_harm_i['PRENO2']) 
         state_harm = state_harm.append(state_harm_i)
@@ -1175,111 +1172,6 @@ def bar_no2historic_no2gains(demography, fstr):
     plt.savefig(DIR_FIGS+'bar_no2historic_no2gains_%s.png'%fstr, dpi=500)
     return   
 
-def cdf(harmonized, fstr):
-    """
-    """
-    import numpy as np
-    from scipy import stats
-    from matplotlib import pyplot as plt
-    from matplotlib.lines import Line2D
-    # Most/least wealthy, white, and educated (educated = some college or higher)
-    mostwealthy = harmonized.loc[harmonized['AJZAE001'] > np.nanpercentile(
-        harmonized['AJZAE001'], 90)]
-    leastwealthy = harmonized.loc[harmonized['AJZAE001'] < np.nanpercentile(
-        harmonized['AJZAE001'], 10)]
-    frac_white = (harmonized['AJWNE002']/harmonized['AJWBE001'])
-    mostwhite = harmonized.iloc[np.where(frac_white > 
-        np.nanpercentile(frac_white, ptile_upper))]
-    leastwhite = harmonized.iloc[np.where(frac_white < 
-        np.nanpercentile(frac_white, ptile_lower))]
-    frac_educated = (harmonized.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
-        harmonized['AJYPE001'])
-    mosteducated = harmonized.iloc[np.where(frac_educated > 
-        np.nanpercentile(frac_educated, ptile_upper))]
-    leasteducated = harmonized.iloc[np.where(frac_educated < 
-        np.nanpercentile(frac_educated, ptile_lower))]
-    # Plotting
-    fig = plt.figure(figsize=(4,6))
-    ax1 = plt.subplot2grid((3,1),(0,0))
-    ax2 = plt.subplot2grid((3,1),(1,0))
-    ax3 = plt.subplot2grid((3,1),(2,0))
-    bins = np.hstack([np.linspace(0, 1e16, 1000), np.inf])
-    # Most wealthy and least wealthy
-    n1, b1, p1 = ax1.hist(mostwealthy['PRENO2'].values, bins=bins, 
-        density=True, lw=1.5, histtype='step', cumulative=True, 
-        color='#2a6a99')
-    n2, b2, p2 = ax1.hist(leastwealthy['PRENO2'].values, bins=bins, 
-        density=True, lw=1.5, histtype='step', cumulative=True, 
-        color='#d88546')
-    n3, b3, p3 = ax1.hist(mostwealthy['POSTNO2'].values, bins=bins,
-        density=True, histtype='step', lw=1., ls='--',cumulative=True, 
-        color='#2a6a99')
-    n4, b4, p4 = ax1.hist(leastwealthy['POSTNO2'].values, bins=bins, 
-        density=True, histtype='step', lw=1., ls='--', cumulative=True,
-        color='#d88546')
-    # Most white and least white
-    n1, b1, p1 = ax2.hist(mostwhite['PRENO2'].values, bins=bins, 
-        density=True, lw=1.5, histtype='step', cumulative=True, 
-        color='#2a6a99')
-    n2, b2, p2 = ax2.hist(leastwhite['PRENO2'].values, bins=bins, 
-        density=True, lw=1.5, ls='-', histtype='step', cumulative=True, 
-        color='#d88546')
-    n3, b3, p3 = ax2.hist(mostwhite['POSTNO2'].values, bins=bins, density=True, 
-        histtype='step', lw=1., ls='--',cumulative=True, color='#2a6a99')
-    n4, b4, p4 = ax2.hist(leastwhite['POSTNO2'].values, bins=bins,
-        density=True, histtype='step', lw=1., ls='--', cumulative=True, 
-        color='#d88546')
-    # Most white and least white
-    n1, b1, p1 = ax3.hist(mosteducated['PRENO2'].values, bins=bins,
-        density=True, lw=1.5, histtype='step', cumulative=True, 
-        color='#2a6a99')
-    n2, b2, p2 = ax3.hist(leasteducated['PRENO2'].values, bins=bins, 
-        density=True, lw=1.5, ls='-', histtype='step', cumulative=True, 
-        color='#d88546')
-    n3, b3, p3 = ax3.hist(mosteducated['POSTNO2'].values, bins=bins, 
-        density=True, histtype='step', lw=1., ls='--',cumulative=True, 
-        color='#2a6a99')
-    n4, b4, p4 = ax3.hist(leasteducated['POSTNO2'].values, bins=bins, 
-        density=True, histtype='step', lw=1., ls='--',cumulative=True, 
-        color='#d88546')
-    # Aesthetics
-    for ax in [ax1, ax2, ax3]:
-        ax.set_xlim([1e15, 7e15])
-        ax.set_xticks([1e15, 2e15, 3e15, 4e15, 5e15, 6e15, 7e15])
-        ax.set_xticklabels([])
-        ax.set_ylim([0, 1.01])
-        ax.set_yticks([0, 0.25, 0.5, 0.75, 1.])
-        ax.set_yticklabels(['0', '', '0.5', '', '1.0'])
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-        # Only show ticks on the left and bottom spines
-        ax.yaxis.set_ticks_position('left')
-        ax.xaxis.set_ticks_position('bottom')
-    ax2.set_ylabel('Cumulative distribution', fontsize=12)    
-    ax3.set_xticklabels(['1', '2', '3', '4', '5', '6', '7'])
-    ax3.set_xlabel('NO$_{2}$ x 10$^{15}$ [molec cm$^{-2}$]', fontsize=12)
-    ax1.set_title('(a)', x=0.1, fontsize=12)
-    ax1.text(.5e16, 0.65, 'Most wealthy', fontsize=12, color='#2a6a99')
-    ax1.text(.5e16, 0.5, 'vs.', fontsize=12, color='k')
-    ax1.text(.5e16, 0.35, 'Least wealthy', fontsize=12, color='#d88546')
-    ax2.set_title('(b)', x=0.1, fontsize=12)
-    ax2.text(.5e16, 0.65, 'Most white', fontsize=12, color='#2a6a99')
-    ax2.text(.5e16, 0.5, 'vs.', fontsize=12, color='k')
-    ax2.text(.5e16, 0.35, 'Least white', fontsize=12, color='#d88546')
-    ax3.set_title('(c)', x=0.1, fontsize=12)
-    ax3.text(.5e16, 0.65, 'Most educated', fontsize=12, color='#2a6a99')
-    ax3.text(.5e16, 0.5, 'vs.', fontsize=12, color='k')
-    ax3.text(.5e16, 0.35, 'Least educated', fontsize=12, color='#d88546')
-    plt.subplots_adjust(left=0.2, hspace=0.6, bottom=0.15, top=0.9)
-    # Custom legend
-    custom_lines = [Line2D([0], [0], color='k', lw=1.5),
-        Line2D([0], [0], color='k', ls='--', lw=1)]
-    ax3.legend(custom_lines, ['Historic', 'Lockdown'], 
-        bbox_to_anchor=(0.95, -0.55), ncol=2, frameon=False)
-    plt.savefig(DIR_FIGS+'cdf_income_race_education_%sNEW.png'%fstr, dpi=500)
-    return 
-
 def lollipop(harmonized, harmonized_urban, harmonized_rural):
     """
     """
@@ -1353,7 +1245,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     ax.plot(leastwhite['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
     ax.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
         np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
-        np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))), 
+        np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     # Historic NO2 for white and non-white populations
     ax.plot(mostwhite['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
@@ -1361,7 +1253,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     # Draw connection lines
     ax.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
         np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
-        np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7    
@@ -1377,7 +1269,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
         np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
-        np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))), 
+        np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     ax.plot(mostwhite['POSTNO2'].mean(), i+os, 'o', color=color_white, 
         zorder=12)
@@ -1385,7 +1277,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
         np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
-        np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7  
@@ -1401,7 +1293,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
         np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
-        np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))), 
+        np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     ax.plot(mostwhite['POSTNO2'].mean(), i+os, 'o', color=color_white, 
         zorder=12)
@@ -1409,7 +1301,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
         np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
-        np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7        
@@ -1433,7 +1325,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         ax.plot(leastwhite['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
         ax.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
             np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
-            np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))), 
+            np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
             [i-os,i-os], color='k', ls='-', zorder=10)    
         # i = i+2
         # Historic NO2 for white and non-white populations
@@ -1442,7 +1334,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         # Draw connection lines
         ax.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
             np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
-            np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))), 
+            np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
             [i+os,i+os], color='k', ls='--', zorder=10)
         yticks.append(np.nanmean([i]))
         i = i+7
@@ -1489,7 +1381,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     ax.plot(leastwealthy['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
     ax.plot((np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()]), 
         np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+
-        np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))), 
+        np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     # Historic NO2 for white and non-white populations
     ax.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
@@ -1497,7 +1389,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     # Draw connection lines
     ax.plot((np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()]), 
         np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
-        np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7    
@@ -1512,7 +1404,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()]), 
         np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+
-        np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))), 
+        np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     ax.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, 
         zorder=12)
@@ -1520,7 +1412,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()]), 
         np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
-        np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7  
@@ -1535,7 +1427,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()]), 
         np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+
-        np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))), 
+        np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     ax.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, 
         zorder=12)
@@ -1543,7 +1435,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         zorder=12)
     ax.plot((np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()]), 
         np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
-        np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7      
@@ -1565,7 +1457,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         ax.plot((np.min([mostwealthy['PRENO2'].mean(),
             leastwealthy['PRENO2'].mean()]), np.min([mostwealthy[
             'PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+np.abs(np.diff(
-            [mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))), 
+            [mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
             [i-os,i-os], color='k', ls='-', zorder=10)    
         # Historic NO2 for white and non-white populations
         ax.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, 
@@ -1577,7 +1469,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
             leastwealthy['POSTNO2'].mean()]), np.min([
             mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
             np.abs(np.diff([mostwealthy['POSTNO2'].mean(), 
-            leastwealthy['POSTNO2'].mean()]))), [i+os,i+os], color='k', 
+            leastwealthy['POSTNO2'].mean()]))[0]), [i+os,i+os], color='k', 
             ls='--', zorder=10)
         yticks.append(np.nanmean([i]))
         i = i+7
@@ -1626,7 +1518,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     ax.plot(leasteducated['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
     ax.plot((np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()]), 
         np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()])+
-        np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))), 
+        np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     # Historic NO2 for white and non-white populations
     ax.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
@@ -1634,7 +1526,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     # Draw connection lines
     ax.plot((np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()]), 
         np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()])+
-        np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7    
@@ -1650,7 +1542,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     ax.plot(leasteducated['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
     ax.plot((np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()]), 
         np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()])+
-        np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))), 
+        np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     # Historic NO2 for white and non-white populations
     ax.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
@@ -1658,7 +1550,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     # Draw connection lines
     ax.plot((np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()]), 
         np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()])+
-        np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7    
@@ -1674,7 +1566,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     ax.plot(leasteducated['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
     ax.plot((np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()]), 
         np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()])+
-        np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))), 
+        np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
         [i-os,i-os], color='k', ls='-', zorder=10)    
     # Historic NO2 for white and non-white populations
     ax.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
@@ -1682,7 +1574,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     # Draw connection lines
     ax.plot((np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()]), 
         np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()])+
-        np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))), 
+        np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
         [i+os,i+os], color='k', ls='--', zorder=10)
     yticks.append(np.nanmean([i]))
     i = i+7    
@@ -1708,7 +1600,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
             leasteducated['PRENO2'].mean()]), 
             np.min([mosteducated['PRENO2'].mean(),
             leasteducated['PRENO2'].mean()])+np.abs(np.diff(
-            [mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))), 
+            [mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
             [i-os,i-os], color='k', ls='-', zorder=10)    
         # Historic NO2 for white and non-white populations
         ax.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, 
@@ -1719,7 +1611,7 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
         ax.plot((np.min([mosteducated['POSTNO2'].mean(), leasteducated[
             'POSTNO2'].mean()]), np.min([mosteducated['POSTNO2'].mean(), 
             leasteducated['POSTNO2'].mean()])+np.abs(np.diff(
-            [mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))), 
+            [mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
             [i+os,i+os], color='k', ls='--', zorder=10)
         yticks.append(np.nanmean([i]))
         i = i+7
@@ -1750,58 +1642,260 @@ def lollipop(harmonized, harmonized_urban, harmonized_rural):
     plt.gca().invert_yaxis()
     plt.subplots_adjust(left=0.20, right=0.96, bottom=0.05, top=0.9)
     plt.savefig(DIR_FIGS+'lollipop_oneducation.png', dpi=500)
+    
+    # Initialize figure
+    fig = plt.figure(figsize=(6,6.5))
+    ax = plt.subplot2grid((1,1),(0,0))
+    i = 0 
+    yticks = []
+    # For all tracts
+    frac = 1-(harmonized['AJWWE003']/harmonized['AJWWE001'])
+    most = harmonized.iloc[np.where(frac > 
+        np.nanpercentile(frac, ptile_upper))]
+    least = harmonized.iloc[np.where(frac < 
+        np.nanpercentile(frac, ptile_lower))]
+    ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+    ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+    ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+        np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+        np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+        [i-os,i-os], color='k', ls='-', zorder=10)    
+    ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+    ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+    ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+        np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+        np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+        [i+os,i+os], color='k', ls='--', zorder=10)
+    yticks.append(np.nanmean([i]))
+    i = i+7    
+    # For rural tracts
+    frac = 1-(harmonized_rural['AJWWE003']/harmonized_rural['AJWWE001'])
+    most = harmonized_rural.iloc[np.where(frac > 
+        np.nanpercentile(frac, ptile_upper))]
+    least = harmonized_rural.iloc[np.where(frac < 
+        np.nanpercentile(frac, ptile_lower))]
+    ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+        np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+        np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+        [i-os,i-os], color='k', ls='-', zorder=10)    
+    ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+        np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+        np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+        [i+os,i+os], color='k', ls='--', zorder=10)
+    yticks.append(np.nanmean([i]))
+    i = i+7  
+    # For urban tracts
+    frac = 1-(harmonized_urban['AJWWE003']/harmonized_urban['AJWWE001'])
+    most = harmonized_urban.iloc[np.where(frac > 
+        np.nanpercentile(frac, ptile_upper))]
+    least = harmonized_urban.iloc[np.where(frac < 
+        np.nanpercentile(frac, ptile_lower))]
+    ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+        np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+        np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+        [i-os,i-os], color='k', ls='-', zorder=10)    
+    ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+        np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+        np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+        [i+os,i+os], color='k', ls='--', zorder=10)
+    yticks.append(np.nanmean([i]))
+    i = i+7        
+    citynames = [r'$\bf{All}$', r'$\bf{Rural}$', r'$\bf{Urban}$',
+        'New York', 'Los Angeles', 'Chicago', 'Dallas', 'Houston', 
+        'Washington', 'Miami', 'Philadelphia', 'Atlanta', 'Phoenix', 
+        'Boston', 'San Francisco', 'Riverside', 'Detroit', 'Seattle']   
+    for city in [newyork, losangeles, chicago, dallas, houston, washington,
+        miami, philadelphia, atlanta, phoenix, boston, sanfrancisco, 
+        riverside, detroit, seattle]:
+        harmonized_city = subset_harmonized_bycountyfips(harmonized, city)
+        frac = 1-(harmonized_city['AJWWE003']/harmonized_city['AJWWE001'])
+        most = harmonized_city.iloc[np.where(frac > 
+            np.nanpercentile(frac, ptile_upper))]
+        least = harmonized_city.iloc[np.where(frac < 
+            np.nanpercentile(frac, ptile_lower))]
+        ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+        ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+        ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+            np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+            np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+            [i-os,i-os], color='k', ls='-', zorder=10)    
+        ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+        ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+        ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+            np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+            np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+            [i+os,i+os], color='k', ls='--', zorder=10)
+        yticks.append(np.nanmean([i]))
+        i = i+7
+    # Aesthetics 
+    ax.xaxis.tick_top()
+    ax.set_xlim([0.5e15,10e15])
+    ax.set_xticks(np.arange(1e15,10e15,1e15))
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(citynames)
+    ax.tick_params(axis='y', left=False)
+    ax.set_xlabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', x=0.15, labelpad=10,
+        color='darkgrey')
+    ax.xaxis.set_label_position('top')
+    ax.tick_params(axis='x', colors='grey')
+    ax.xaxis.offsetText.set_visible(False)
+    for side in ['right', 'left', 'top', 'bottom']:
+        ax.spines[side].set_visible(False)
+    ax.grid(axis='x', zorder=0, color='darkgrey')
+    custom_lines = [Line2D([0], [0], marker='o', color=color_white, lw=0),
+        Line2D([0], [0], marker='o', color=color_non, lw=0),  
+        Line2D([0], [0], color='k', lw=1.0),
+        Line2D([0], [0], color='k', ls='--', lw=1)]
+    ax.legend(custom_lines, ['Least Hispanic', 'Most Hispanic', 'Baseline', 'Lockdown'], 
+        bbox_to_anchor=(0.4, -0.07), loc=8, ncol=4, frameon=False)
+    plt.gca().invert_yaxis()
+    plt.subplots_adjust(left=0.20, right=0.96, bottom=0.05, top=0.9)
+    plt.savefig(DIR_FIGS+'lollipop_onethnicity.png', dpi=500)
+    plt.show()    
+    
+    # Initialize figure
+    fig = plt.figure(figsize=(6,6.5))
+    ax = plt.subplot2grid((1,1),(0,0))
+    i = 0 
+    yticks = []
+    # For all tracts
+    frac = 1-harmonized['FracNoCar']
+    most = harmonized.iloc[np.where(frac > 
+        np.nanpercentile(frac, ptile_upper))]
+    least = harmonized.iloc[np.where(frac < 
+        np.nanpercentile(frac, ptile_lower))]
+    ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+    ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+    ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+        np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+        np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+        [i-os,i-os], color='k', ls='-', zorder=10)    
+    ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+    ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+    ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+        np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+        np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+        [i+os,i+os], color='k', ls='--', zorder=10)
+    yticks.append(np.nanmean([i]))
+    i = i+7    
+    # For rural tracts
+    frac = 1-harmonized_rural['FracNoCar']
+    most = harmonized_rural.iloc[np.where(frac > 
+        np.nanpercentile(frac, ptile_upper))]
+    least = harmonized_rural.iloc[np.where(frac < 
+        np.nanpercentile(frac, ptile_lower))]
+    ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+        np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+        np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+        [i-os,i-os], color='k', ls='-', zorder=10)    
+    ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+        np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+        np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+        [i+os,i+os], color='k', ls='--', zorder=10)
+    yticks.append(np.nanmean([i]))
+    i = i+7  
+    # For urban tracts
+    frac = 1-harmonized_urban['FracNoCar']
+    most = harmonized_urban.iloc[np.where(frac > 
+        np.nanpercentile(frac, ptile_upper))]
+    least = harmonized_urban.iloc[np.where(frac < 
+        np.nanpercentile(frac, ptile_lower))]
+    ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+        np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+        np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+        [i-os,i-os], color='k', ls='-', zorder=10)    
+    ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+        zorder=12)
+    ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+        zorder=12)
+    ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+        np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+        np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+        [i+os,i+os], color='k', ls='--', zorder=10)
+    yticks.append(np.nanmean([i]))
+    i = i+7        
+    citynames = [r'$\bf{All}$', r'$\bf{Rural}$', r'$\bf{Urban}$',
+        'New York', 'Los Angeles', 'Chicago', 'Dallas', 'Houston', 
+        'Washington', 'Miami', 'Philadelphia', 'Atlanta', 'Phoenix', 
+        'Boston', 'San Francisco', 'Riverside', 'Detroit', 'Seattle']   
+    for city in [newyork, losangeles, chicago, dallas, houston, washington,
+        miami, philadelphia, atlanta, phoenix, boston, sanfrancisco, 
+        riverside, detroit, seattle]:
+        harmonized_city = subset_harmonized_bycountyfips(harmonized, city)
+        frac = 1-harmonized_city['FracNoCar']
+        most = harmonized_city.iloc[np.where(frac > 
+            np.nanpercentile(frac, ptile_upper))]
+        least = harmonized_city.iloc[np.where(frac < 
+            np.nanpercentile(frac, ptile_lower))]
+        ax.plot(most['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+        ax.plot(least['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+        ax.plot((np.min([most['PRENO2'].mean(),least['PRENO2'].mean()]), 
+            np.min([most['PRENO2'].mean(),least['PRENO2'].mean()])+
+            np.abs(np.diff([most['PRENO2'].mean(), least['PRENO2'].mean()]))[0]), 
+            [i-os,i-os], color='k', ls='-', zorder=10)    
+        ax.plot(most['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+        ax.plot(least['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+        ax.plot((np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()]), 
+            np.min([most['POSTNO2'].mean(),least['POSTNO2'].mean()])+
+            np.abs(np.diff([most['POSTNO2'].mean(), least['POSTNO2'].mean()]))[0]), 
+            [i+os,i+os], color='k', ls='--', zorder=10)
+        yticks.append(np.nanmean([i]))
+        i = i+7
+    # Aesthetics 
+    ax.xaxis.tick_top()
+    ax.set_xlim([0.5e15,10e15])
+    ax.set_xticks(np.arange(1e15,10e15,1e15))
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(citynames)
+    ax.tick_params(axis='y', left=False)
+    ax.set_xlabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', x=0.15, labelpad=10,
+        color='darkgrey')
+    ax.xaxis.set_label_position('top')
+    ax.tick_params(axis='x', colors='grey')
+    ax.xaxis.offsetText.set_visible(False)
+    for side in ['right', 'left', 'top', 'bottom']:
+        ax.spines[side].set_visible(False)
+    ax.grid(axis='x', zorder=0, color='darkgrey')
+    custom_lines = [Line2D([0], [0], marker='o', color=color_white, lw=0),
+        Line2D([0], [0], marker='o', color=color_non, lw=0),  
+        Line2D([0], [0], color='k', lw=1.0),
+        Line2D([0], [0], color='k', ls='--', lw=1)]
+    ax.legend(custom_lines, ['Highest vehicle ownership', 
+        'Lowest vehicle ownership', 'Baseline', 'Lockdown'], 
+        bbox_to_anchor=(0.4, -0.07), loc=8, ncol=4, frameon=False)
+    plt.gca().invert_yaxis()
+    plt.subplots_adjust(left=0.20, right=0.96, bottom=0.05, top=0.9)
+    plt.savefig(DIR_FIGS+'lollipop_onvehicleownership.png', dpi=500)
+    plt.show()        
     return
-
-def hexbin(harmonized_vehicle):
-    """
-    """
-    import matplotlib
-    import numpy as np
-    import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=(5,9))
-    ax1 = plt.subplot2grid((2,1),(0,0))
-    ax2 = plt.subplot2grid((2,1),(1,0))
-    ax1.set_title('(a)', x=0.9, y=0.9)
-    ax2.set_title('(b)', x=0.9, y=0.9)
-    # Create discrete colormaps
-    cmap = plt.get_cmap('YlGnBu', 10)
-    norm = matplotlib.colors.Normalize(vmin=0, vmax=50)
-    ax1.hexbin(harmonized_vehicle['Within10'], harmonized_vehicle['PRENO2'],
-        C=harmonized_vehicle['FracNoCar']*100, cmap=cmap, gridsize=35, 
-        vmin=0, vmax=50) 
-    ax2.hexbin(harmonized_vehicle['Within10'], harmonized_vehicle['NO2_ABS'],
-        C=harmonized_vehicle['FracNoCar']*100, cmap=cmap, gridsize=35, 
-        vmin=0, vmax=50) 
-    # Aesthetics
-    ax1.set_xlim([0,300])
-    ax1.set_xticklabels([])
-    ax1.set_ylim([0.0,14e15])
-    ax1.set_yticks(np.linspace(0,1.4e16,8))
-    ax1.set_yticklabels([str(int(x)) for x in np.linspace(0,14,8)])
-    ax1.yaxis.offsetText.set_visible(False)
-    ax1.set_ylabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]')
-    for pos in ['right','top']:
-        ax1.spines[pos].set_visible(False)
-        ax1.spines[pos].set_visible(False)
-    ax2.set_xlim([0,300])
-    ax2.set_ylim([-6e15, 0])
-    ax2.yaxis.offsetText.set_visible(False)
-    ax2.set_xlabel('[Roads (10 km radius)$^{-1}$]')
-    ax2.set_ylabel('$\Delta$ NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]')
-    # ax2.xaxis.tick_top()
-    for pos in ['right','top']:
-        ax2.spines[pos].set_visible(False)
-        ax2.spines[pos].set_visible(False)
-    # Colorbar
-    cax = fig.add_axes([ax1.get_position().x0,
-        ax2.get_position().y0-0.07, 
-        ax2.get_position().x1-ax2.get_position().x0, 0.02])
-    matplotlib.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm,
-        spacing='proportional', orientation='horizontal', extend='max',
-        label='Households without vehicles [%]')
-    plt.subplots_adjust(hspace=0.1, top=0.98, bottom=0.15)
-    plt.savefig(DIR_FIGS+'hexbin_roaddensity_no2.png', dpi=500)
-    return 
 
 def bar_gains(harmonized):
     """
@@ -2107,6 +2201,11 @@ def hist_demographics_urbanmissing(harmonized_urban):
     color_nogc = '#0095A8'
     color_urban = '#FF7043'
     nb = 50
+    
+    
+    # CHECK K-S test
+    from scipy.stats import ks_2samp
+    ks_2samp(x, y)
     # Initialize figure, axes
     fig = plt.figure(figsize=(9,4))
     ax1 = plt.subplot2grid((2,3),(0,0))
@@ -2210,6 +2309,7 @@ harmonized = merge_harmonized_vehicleownership(harmonized)
 # Split into rural and urban tracts
 harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
     harmonized)
+
 # # Calculate percentage of tracts without co-located TROPOMI retrievals 
 # print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
 #     harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
@@ -2217,18 +2317,6 @@ harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
 #     harmonized_urban['PRENO2'])==False)[0])/len(harmonized_urban)*100.))
 # print('%.1f of rural tracts have NO2 retrievals'%(len(np.where(np.isnan(
 #     harmonized_rural['PRENO2'])==False)[0])/len(harmonized_rural)*100.))
-
-# # Determine demographics in tracts
-# demography, mostno2, leastno2, increaseno2, decreaseno2 = \
-#     harmonized_demographics(harmonized, ptile_upper, ptile_lower)
-# (demography_urban, mostno2_urban, leastno2_urban, increaseno2_urban, 
-#     decreaseno2_urban) = harmonized_demographics(harmonized_urban, ptile_upper, 
-#     ptile_lower)
-# (demography_rural, mostno2_rural, leastno2_rural, increaseno2_rural, 
-#     decreaseno2_rural) = harmonized_demographics(harmonized_rural, ptile_upper, 
-#     ptile_lower)
-
-
 # # Visualizations
 # demographic_summarytable(demography, 'alltracts')
 # demographic_summarytable(demography_rural, 'ruraltracts')
@@ -2240,18 +2328,13 @@ harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
 # bar_no2historic_no2gains(demography_urban, 'urbantracts')
 # bar_no2historic_no2gains(demography_rural, 'ruraltracts')
 
-# cdf(harmonized, 'alltracts')
-# cdf(harmonized_urban, 'urbantracts')
-# cdf(harmonized_rural, 'ruraltracts')
 # lollipop(harmonized, harmonized_urban, harmonized_rural)
 # (demography_city, mostno2_city, leastno2_city, increaseno2_city, 
 #     decreaseno2_city) = harmonized_demographics(harmonized_city, 
 #     ptile_upper, ptile_lower)
 # demographic_summarytable(demography_city, 'newyork')
 
-# hexbin(harmonized_urban)
 # bar_gains(harmonized_rural)
-
 # hist_demographics_urbanmissing(harmonized_urban)
 
 
@@ -2264,154 +2347,218 @@ harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
 
 
 
+# def merge_harmonized_error(harmonized):
+#     """function opens census data on vehicle ownership and derived road density
+#     and merges it with harmonized TROPOMI-census data
+    
+#     Parameters
+#     ----------
+#     harmonized : pandas.core.frame.DataFrame
+#         Harmonized tract-level TROPOMI NO2 and census data for state(s) of 
+#         interest
+        
+#     Returns
+#     -------
+#     harmonized_error : pandas.core.frame.DataFrame
+#         Harmonized tract-level TROPOMI NO2 and census data for state(s) of 
+#         interest with appended margin of error columns for race, income, and
+#         educational attainment
+#     """
+#     import pandas as pd
+#     # Read in original NHGIS data with Margins of error
+#     error = pd.read_csv(DIR_HARM+'nhgis0003_ds239_20185_2018_tract.csv', 
+#         delimiter=',', header=0, engine='python')
+#     # Replace GISJOIN identified with GEOID for easy look-up
+#     gisjoin_to_geoid = [x[1:3]+x[4:7]+x[8:] for x in error['GISJOIN']]
+#     error['GEOID'] = gisjoin_to_geoid
+#     # Make GEOID a string and index row 
+#     error = error.set_index('GEOID')
+#     error.index = error.index.map(str)
+#     # Make relevant columns floats
+#     col_relevant = [
+#         'AJWBM001', # Total population
+#         'AJWNM002', # White alone
+#         'AJWNM003', #Black or African American alone
+#         'AJWNM004', # American Indian and Alaska Native alone
+#         'AJWNM005', # Asian alone
+#         'AJWNM006', # Native Hawaiian and Other Pacific Islander alone
+#         'AJWNM007', # Some other race alone
+#         'AJWNM008', # Two or more races
+#         'AJWNM009', # Two or more races: Two races including Some other race
+#         'AJWNM010', # Two or more races: Two races excluding Some other race, 
+#         # and three or more races
+#         'AJYPM001', # Total
+#         'AJYPM002', # No schooling completed
+#         'AJYPM003', # Nursery school
+#         'AJYPM004', # Kindergarten
+#         'AJYPM005', # 1st grade
+#         'AJYPM006', # 2nd grade
+#         'AJYPM007', # 3rd grade
+#         'AJYPM008', # 4th grade
+#         'AJYPM009', # 5th grade
+#         'AJYPM010', # 6th grade
+#         'AJYPM011', # 7th grade
+#         'AJYPM012', # 8th grade
+#         'AJYPM013', # 9th grade
+#         'AJYPM014', # 10th grade
+#         'AJYPM015', # 11th grade
+#         'AJYPM016', # 12th grade, no diploma
+#         'AJYPM017', # Regular high school diploma
+#         'AJYPM018', # GED or alternative credential
+#         'AJYPM019', # Some college, less than 1 year
+#         'AJYPM020', # Some college, 1 or more years, no degree
+#         'AJYPM021', # Associate's degree
+#         'AJYPM022', # Bachelor's degree
+#         'AJYPM023', # Master's degree
+#         'AJYPM024', # Professional school degree
+#         'AJYPM025', # Doctorate degree
+#         'AJZAM001' # Median household income in the past 12 months 
+#         # (in 2018 inflation-adjusted dollars)
+#         ]
+#     error = error[col_relevant]
+#     for col in col_relevant:
+#         error[col] = error.loc[:,col].astype(float)
+#     # Merge with harmonized census data
+#     harmonized_error = harmonized.merge(error, left_index=True, 
+#         right_index=True)
+#     return harmonized_error
 
-""" XXX"""
-# harmonized = harmonized_urban 
-# import numpy as np
-# import scipy.stats as st
-# import matplotlib as mpl
-# import matplotlib.pyplot as plt
-# from scipy import stats
-# # 
-# priroad_byincome = []
-# byincome_cilow, byincome_cihigh = [], []
-# priroad_byrace = []
-# byrace_cilow, byrace_cihigh = [], []
-# priroad_byeducation = []
-# byeducation_cilow, byeducation_cihigh = [], []
-# priroad_byethnicity = []
-# byethnicity_cilow, byethnicity_cihigh = [], []
-# priroad_byvehicle = []
-# byvehicle_cilow, byvehicle_cihigh = [], []
-# pri_density_mean = []
-# dno2_mean = []
-# ci_low, ci_high = [], []
-# # Find tracts with a change in NO2 in the given range
-# for ptilel, ptileu in zip(np.arange(0,100,10), np.arange(10,110,10)):    
-#     dno2 = harmonized.loc[(harmonized['NO2_ABS']>
-#         np.nanpercentile(harmonized['NO2_ABS'], ptilel)) & (
-#         harmonized['NO2_ABS']<=np.nanpercentile(harmonized['NO2_ABS'], ptileu))]
-#     # Find mean primary/secondary road density within 1 km and change in 
-#     # NO2 for every percentile range
-#     pri_density_mean.append(dno2['PrimaryWithin1'].mean())
-#     dno2_mean.append(dno2['NO2_ABS'].mean())
-#     ci = st.t.interval(0.95, len(dno2)-1, loc=np.mean(dno2['PrimaryWithin1']), 
-#         scale=st.sem(dno2['PrimaryWithin1']))
-#     ci_low.append(ci[0])
-#     ci_high.append(ci[1])    
-# # 
-# income = harmonized['AJZAE001']
-# race = (harmonized['AJWNE002']/harmonized['AJWBE001'])
-# education = (harmonized.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/harmonized['AJYPE001'])
-# ethnicity = (harmonized['AJWWE002']/harmonized['AJWWE001'])
-# vehicle = 1-harmonized['FracNoCar']
-# for ptilel, ptileu in zip(np.arange(0,100,10), np.arange(10,110,10)):    
-#     # Primary road density and confidence intervals by income
-#     decile_income = harmonized.loc[(income>
-#         np.nanpercentile(income, ptilel)) & (
-#         income<=np.nanpercentile(income, ptileu))]
-#     ci = st.t.interval(0.95, len(decile_income)-1, 
-#         loc=np.mean(decile_income['PrimaryWithin1']), scale=st.sem(
-#         decile_income['PrimaryWithin1']))
-#     priroad_byincome.append(decile_income['PrimaryWithin1'].mean())        
-#     byincome_cilow.append(ci[0])
-#     byincome_cihigh.append(ci[1])
-#     # By race            
-#     decile_race = harmonized.loc[(race>
-#         np.nanpercentile(race, ptilel)) & (
-#         race<=np.nanpercentile(race, ptileu))] 
-#     ci = st.t.interval(0.95, len(decile_race)-1, 
-#         loc=np.mean(decile_race['PrimaryWithin1']), scale=st.sem(
-#         decile_race['PrimaryWithin1']))
-#     priroad_byrace.append(decile_race['PrimaryWithin1'].mean())    
-#     byrace_cilow.append(ci[0])
-#     byrace_cihigh.append(ci[1])            
-#     # By education
-#     decile_education = harmonized.loc[(education>
-#         np.nanpercentile(education, ptilel)) & (
-#         education<=np.nanpercentile(education, ptileu))]      
-#     ci = st.t.interval(0.95, len(decile_education)-1, 
-#         loc=np.mean(decile_education['PrimaryWithin1']), scale=st.sem(
-#         decile_education['PrimaryWithin1']))
-#     priroad_byeducation.append(decile_education['PrimaryWithin1'].mean())    
-#     byeducation_cilow.append(ci[0])
-#     byeducation_cihigh.append(ci[1])
-#     # By ethnicity
-#     decile_ethnicity = harmonized.loc[(ethnicity>
-#         np.nanpercentile(ethnicity, ptilel)) & (
-#         ethnicity<=np.nanpercentile(ethnicity, ptileu))]
-#     ci = st.t.interval(0.95, len(decile_ethnicity)-1, 
-#         loc=np.mean(decile_ethnicity['PrimaryWithin1']), scale=st.sem(
-#         decile_ethnicity['PrimaryWithin1']))
-#     priroad_byethnicity.append(decile_ethnicity['PrimaryWithin1'].mean())    
-#     byethnicity_cilow.append(ci[0])
-#     byethnicity_cihigh.append(ci[1])
-#     # By vehicle ownership
-#     decile_vehicle = harmonized.loc[(vehicle>
-#         np.nanpercentile(vehicle, ptilel)) & (
-#         vehicle<=np.nanpercentile(vehicle, ptileu))]    
-#     ci = st.t.interval(0.95, len(decile_vehicle)-1, 
-#         loc=np.mean(decile_vehicle['PrimaryWithin1']), scale=st.sem(
-#         decile_vehicle['PrimaryWithin1']))
-#     priroad_byvehicle.append(decile_vehicle['PrimaryWithin1'].mean())    
-#     byvehicle_cilow.append(ci[0])
-#     byvehicle_cihigh.append(ci[1])    
-# # Initialize figure, axis
-# fig = plt.figure(figsize=(8,5))
-# ax1 = plt.subplot2grid((1,1),(0,0))
-# color_density = 'k'
-# color1 = '#0095A8'
-# color2 = '#FF7043'
-# color3 = '#8da0cb'
-# color4 = '#e78ac3'
-# color5 = '#a6d854'
-# # Plotting
-# ax1.plot(pri_density_mean, lw=2, marker='o', 
-#     markeredgecolor=color_density, markerfacecolor='w', zorder=10,
-#     color=color_density, clip_on=False)
-# ax1.fill_between(np.arange(0,10,1),ci_low, ci_high, facecolor=color_density,
-#     alpha=0.2)
-# ax1.plot(priroad_byincome, ls='-', lw=2, color=color1, zorder=11)
-# ax1.plot(priroad_byeducation, ls='-', lw=2, color=color2, zorder=11)
-# ax1.plot(priroad_byrace, ls='-', lw=2, color=color3, zorder=11)
-# ax1.plot(priroad_byethnicity, ls='-', lw=2, color=color4, zorder=11)
-# ax1.plot(priroad_byvehicle, ls='-', lw=2, color=color5, zorder=11)
-# # Legend
-# ax1.text(1, 0.62, 'Largest NO$_{2}$ decrease', fontsize=12, 
-#     color=color_density)
-# ax1.text(1, 0.585, 'Lowest income', fontsize=12, 
-#     color=color1)
-# ax1.text(1, 0.55, 'Least educated', fontsize=12, 
-#     color=color2)
-# ax1.text(1, 0.515, 'Least White', fontsize=12, 
-#     color=color3)
-# ax1.text(1, 0.48, 'Most Hispanic', fontsize=12, 
-#     color=color4)
-# ax1.text(1, 0.445, 'Lowest vehicle ownership', fontsize=12, color=color5)
-# ax1.text(8.8, 0.62, 'Smallest NO$_{2}$ decrease', fontsize=12, 
-#     color=color_density, ha='right')
-# ax1.text(8.8, 0.585, 'Largest income', fontsize=12, 
-#     color=color1, ha='right')
-# ax1.text(8.8, 0.55, 'Most educated', fontsize=12, 
-#     color=color2, ha='right')
-# ax1.text(8.8, 0.515, 'Most White', fontsize=12, 
-#     color=color3, ha='right')
-# ax1.text(8.8, 0.48, 'Least Hispanic', fontsize=12, 
-#     color=color4, ha='right')
-# ax1.text(8.8, 0.445, 'Highest vehicle ownership', fontsize=12, color=color5,
-#     ha='right')
-# # Aesthetics 
-# ax1.set_xlim([0,9])
-# ax1.set_xticks(np.arange(0,10,1))
-# ax1.set_xticklabels(['(0-10]','(10-20]','(20-30]','(30-40]','(40-50]',
-#     '(50-60]','(60-70]','(70-80]','(80-90]','(90-100]'])
-# ax1.set_ylim([0.05,0.65])
-# ax1.set_xlabel('Decile', fontsize=12)
-# ax1.set_ylabel('Primary road density [roads (1 km radius)$^{-1}$]', 
-#     fontsize=12)
-# plt.savefig('/Users/ghkerr/GW/tropomi_ej/figs/line_decile_primaryroads.png',
-#     dpi=600)
+# def calculate_moe(data, moe):
+#     """
+#     """
+#     uncertainty = []
+#     niter = 100
+#     # Generate array of randomly chosen +/-1; the MoE columns will be
+#     # multiplied by these random numbers such that they can be added or 
+#     # subtracted at random
+#     for x in np.arange(0, niter, 1):
+#         randaddsub = np.random.choice(a=[-1, 1], size=(len(data)))
+#         randaddsub = pd.Series(data + (moe*randaddsub), name=str(x))    
+#         uncertainty.append(randaddsub)
+#     uncertainty = pd.concat(uncertainty, axis=1)
+#     return uncertainty 
 
+# # https://www.psc.isr.umich.edu/dis/acs/handouts/Compass_Appendix.pdf
+
+# X_num = harmonized['AJWNE002']
+# X_den = harmonized['AJWBE001']
+# moe_num = harmonized['AJWNM002']
+# moe_den = harmonized['AJWBM001']
+# phat = (harmonized['AJWNE002']/harmonized['AJWBE001'])
+
+# # phat = (4634/31713.)
+# # moe_num = 989.
+# # moe_den = 601.
+# # X_den = 31713.
+
+# moe_p = np.sqrt(moe_num**2 - (phat**2 * moe_den**2))/X_den
+
+
+
+# moe_p = moe_p.mask(np.isinf(moe_p))
+
+
+
+# frac_white = harmonized['AJWNE002']/harmonized['AJWBE001']
+# frac_white_high = pd.DataFrame(frac_white+moe_p, columns = ['Frac'])
+# frac_white_low = pd.DataFrame(frac_white-moe_p, columns = ['Frac'])
+
+
+# frac_white_low = frac_white_low.mask(np.isinf(frac_white_low))
+# frac_white_high = frac_white_high.mask(np.isinf(frac_white_high))
+
+
+
+# frac_white_low = frac_white_low.merge(harmonized[['PRENO2','POSTNO2']], 
+#     left_index=True, right_index=True)
+# frac_white_high = frac_white_high.merge(harmonized[['PRENO2','POSTNO2']], 
+#     left_index=True, right_index=True)
+
+
+# mostwhite_low = frac_white_low.iloc[np.where(frac_white_low['Frac'] > 
+#     np.nanpercentile(frac_white_low['Frac'], ptile_upper))]
+# mostwhite_high = frac_white_high.iloc[np.where(frac_white_high['Frac'] > 
+#     np.nanpercentile(frac_white_high['Frac'], ptile_upper))]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# frac_white = (harmonized['AJWNE002']/harmonized['AJWBE001'])
+# mostwhite = harmonized.iloc[np.where(frac_white > 
+#     np.nanpercentile(frac_white, ptile_upper))]
+
+# leastwhite = harmonized.iloc[np.where(frac_white < 
+#     np.nanpercentile(frac_white, ptile_lower))]
+
+
+
+
+
+
+
+
+# harmonized = merge_harmonized_error(harmonized)
+
+
+# AJWNE002_uncert = calculate_moe(harmonized['AJWNE002'], harmonized['AJWNM002'])
+# AJWBE001_uncert = calculate_moe(harmonized['AJWBE001'], harmonized['AJWBM001'])
+
+
+# field_low = harmonized['AJWNE002']-harmonized['AJWNM002']
+# field_high = harmonized['AJWNE002']+harmonized['AJWNM002']
+
+# frac_white_low = frac_white_low.mask(np.isinf(frac_white_low))
+# frac_white_high = frac_white_high.mask(np.isinf(frac_white_high))
+
+# frac_white_high = pd.DataFrame(frac_white_high, columns=['Frac'])
+# frac_white_low = pd.DataFrame(frac_white_low, columns=['Frac'])
+
+
+
+
+
+
+
+
+
+# # Determine demographics in tracts
+# demography, mostno2, leastno2, increaseno2, decreaseno2 = \
+#     harmonized_demographics(harmonized, ptile_upper, ptile_lower)
+# (demography_urban, mostno2_urban, leastno2_urban, increaseno2_urban, 
+#     decreaseno2_urban) = harmonized_demographics(harmonized_urban, ptile_upper, 
+#     ptile_lower)
+# (demography_rural, mostno2_rural, leastno2_rural, increaseno2_rural, 
+#     decreaseno2_rural) = harmonized_demographics(harmonized_rural, ptile_upper, 
+#     ptile_lower)
+
+
+
+
+
+
+
+
+
+
+
+
+# 
 """ XXXX """
 # harmonized = harmonized_urban 
 # import numpy as np
@@ -3328,7 +3475,6 @@ harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
 
 
 
-
 """ FIGURE 1 """
 # import netCDF4 as nc
 # import numpy as np
@@ -3442,7 +3588,7 @@ harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
 #     ax.outline_patch.set_visible(False)
 # # # # # Bar charts for demographics
 # harmonized = harmonized_urban
-# colors = ['#7fa5c2','darkgrey','#e7ac56']
+# colors = ['#0095A8','darkgrey','#FF7043']
 # # Largest, smallest and median gains
 # increaseno2 = harmonized.loc[harmonized['NO2_ABS']>
 #     np.nanpercentile(harmonized['NO2_ABS'], ptile_upper)]
@@ -3692,4 +3838,774 @@ harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
 #     spacing='proportional', orientation='horizontal', extend='both',
 #     ticks=[-2e15,-1e15,0,1e15,2e15])
 # caxbase.xaxis.offsetText.set_visible(False)
-# plt.savefig(DIR_FIGS+'NO2_gridded_tractavg_absolute.png', dpi=600)
+# plt.savefig(DIR_FIGS+'fig1.png', dpi=600)
+
+
+"""FIGURE 2"""
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from matplotlib.lines import Line2D
+# # Top 15 MSAs (can be found at 
+# # https://en.wikipedia.org/wiki/List_of_metropolitan_statistical_areas
+# # Wikipedia usually lists the counties included in each MSA (but note that
+# # this is different than the CSA, which includes more counties). The 
+# # corresponding FIPS codes for each county can be found at 
+# # www.nrcs.usda.gov/wps/portal/nrcs/detail/national/home/?cid=nrcs143_013697
+# # New York-Newark-Jersey City, NY-NJ-PA MSA
+# newyork = ['36047','36081','36061','36005','36085','36119','34003',
+#     '34017','34031','36079','36087','36103','36059','34023','34025',
+#     '34029','34035','34013','34039','34027','34037'	,'34019','42103']
+# # Los Angeles-Long Beach-Anaheim, CA MSA
+# losangeles = ['06037','06059']
+# # Chicago-Naperville-Elgin, IL-IN-WI MSA
+# chicago = ['17031','17037','17043','17063','17091','17089','17093',
+#     '17111','17197','18073','18089','18111','18127','17097','55059']
+# # Dallas-Fort Worth-Arlington, TX MSA
+# dallas = ['48085','48113','48121','48139','48231','48257','48397',
+#     '48251','48367','48439','48497']
+# # Houston-The Woodlands-Sugar Land, TX MSA
+# houston = ['48201','48157','48339','48039','48167','48291','48473',
+#     '48071','48015']
+# # Washington-Arlington-Alexandria, DC-VA-MD-WV MSA
+# washington = ['11001','24009','24017','24021','24031','24033','51510',
+#     '51013','51043','51047','51059','51600','51610','51061','51630',
+#     '51107','51683','51685','51153','51157','51177','51179','51187']
+# # Miami-Fort Lauderdale-Pompano Beach, FL MSA	
+# miami = ['12086','12011','12099']
+# # Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA
+# philadelphia = ['34005','34007','34015','42017','42029','42091','42045',
+#     '42101','10003','24015','34033']
+# # Atlanta-Sandy Springs-Alpharetta, GA MSA
+# atlanta = ['13121','13135','13067','13089','13063','13057','13117',
+#     '13151','13223','13077','13097','13045','13113','13217','13015',
+#     '13297','13247','13013','13255','13227','13143','13085','13035',
+#     '13199','13171','13211','13231','13159','13149']
+# # Phoenix-Mesa-Chandler, AZ MSA
+# phoenix = ['04013','04021','04007']
+# # Boston-Cambridge-Newton, MA-NH MSA
+# boston = ['25021','25023','25025','25009','25017','33015','33017']
+# # San Francisco-Oakland-Berkeley, CA MSA
+# sanfrancisco = ['06001','06013','06075','06081','06041']
+# # Riverside-San Bernardino-Ontario, CA MSA
+# riverside = ['06065','06071']
+# # Detroit-Warren-Dearborn, MI MSA
+# detroit = ['26163','26125','26099','26093','26147','26087']
+# # Seattle-Tacoma-Bellevue, WA MSA
+# seattle = ['53033','53061','53053']
+# # Colors
+# color_white = '#0095A8'
+# color_non = '#FF7043'
+# os = 1.2
+# # Initialize figure
+# fig = plt.figure(figsize=(12,7))
+# ax1 = plt.subplot2grid((2,3),(0,0),rowspan=2)
+# ax2 = plt.subplot2grid((2,3),(0,1),rowspan=2)
+# ax3 = plt.subplot2grid((2,3),(0,2),rowspan=2)
+# i = 0 
+# yticks = []
+# # For all tracts
+# frac_white = (harmonized['AJWNE002']/harmonized['AJWBE001'])
+# mostwhite = harmonized.iloc[np.where(frac_white > 
+#     np.nanpercentile(frac_white, ptile_upper))]
+# leastwhite = harmonized.iloc[np.where(frac_white < 
+#     np.nanpercentile(frac_white, ptile_lower))]
+# # Lockdown NO2  or white and non-white populations
+# ax1.plot(mostwhite['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+# ax1.plot(leastwhite['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+# ax1.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
+#     np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
+#     np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# # Historic NO2 for white and non-white populations
+# ax1.plot(mostwhite['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+# ax1.plot(leastwhite['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+# # Draw connection lines
+# ax1.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
+#     np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
+#     np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7    
+# # For rural tracts
+# frac_white = (harmonized_rural['AJWNE002']/harmonized_rural['AJWBE001'])
+# mostwhite = harmonized_rural.iloc[np.where(frac_white > 
+#     np.nanpercentile(frac_white, ptile_upper))]
+# leastwhite = harmonized_rural.iloc[np.where(frac_white < 
+#     np.nanpercentile(frac_white, ptile_lower))]
+# ax1.plot(mostwhite['PRENO2'].mean(), i-os, 'o', color=color_white, 
+#     zorder=12)
+# ax1.plot(leastwhite['PRENO2'].mean(), i-os, 'o', color=color_non, 
+#     zorder=12)
+# ax1.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
+#     np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
+#     np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax1.plot(mostwhite['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+#     zorder=12)
+# ax1.plot(leastwhite['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+#     zorder=12)
+# ax1.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
+#     np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
+#     np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7  
+# # For rural tracts
+# frac_white = (harmonized_urban['AJWNE002']/harmonized_urban['AJWBE001'])
+# mostwhite = harmonized_urban.iloc[np.where(frac_white > 
+#     np.nanpercentile(frac_white, ptile_upper))]
+# leastwhite = harmonized_urban.iloc[np.where(frac_white < 
+#     np.nanpercentile(frac_white, ptile_lower))]
+# ax1.plot(mostwhite['PRENO2'].mean(), i-os, 'o', color=color_white, 
+#     zorder=12)
+# ax1.plot(leastwhite['PRENO2'].mean(), i-os, 'o', color=color_non, 
+#     zorder=12)
+# ax1.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
+#     np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
+#     np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax1.plot(mostwhite['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+#     zorder=12)
+# ax1.plot(leastwhite['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+#     zorder=12)
+# ax1.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
+#     np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
+#     np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7        
+# citynames = [r'$\bf{All}$', r'$\bf{Rural}$', r'$\bf{Urban}$',
+#     'New York', 'Los Angeles', 'Chicago', 'Dallas', 'Houston', 
+#     'Washington', 'Miami', 'Philadelphia', 'Atlanta', 'Phoenix', 
+#     'Boston', 'San Francisco', 'Riverside', 'Detroit', 'Seattle']   
+# for city in [newyork, losangeles, chicago, dallas, houston, washington,
+#     miami, philadelphia, atlanta, phoenix, boston, sanfrancisco, 
+#     riverside, detroit, seattle]:
+#     # Subset for city
+#     harmonized_city = subset_harmonized_bycountyfips(harmonized, city)
+#     # Find particular demographic for each city
+#     frac_white = (harmonized_city['AJWNE002']/harmonized_city['AJWBE001'])
+#     mostwhite = harmonized_city.iloc[np.where(frac_white > 
+#         np.nanpercentile(frac_white, ptile_upper))]
+#     leastwhite = harmonized_city.iloc[np.where(frac_white < 
+#         np.nanpercentile(frac_white, ptile_lower))]
+#     # Lockdown NO2  or white and non-white populations
+#     ax1.plot(mostwhite['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+#     ax1.plot(leastwhite['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+#     ax1.plot((np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()]), 
+#         np.min([mostwhite['PRENO2'].mean(),leastwhite['PRENO2'].mean()])+
+#         np.abs(np.diff([mostwhite['PRENO2'].mean(), leastwhite['PRENO2'].mean()]))[0]), 
+#         [i-os,i-os], color='k', ls='-', zorder=10)    
+#     # i = i+2
+#     # Historic NO2 for white and non-white populations
+#     ax1.plot(mostwhite['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+#     ax1.plot(leastwhite['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+#     # Draw connection lines
+#     ax1.plot((np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()]), 
+#         np.min([mostwhite['POSTNO2'].mean(),leastwhite['POSTNO2'].mean()])+
+#         np.abs(np.diff([mostwhite['POSTNO2'].mean(), leastwhite['POSTNO2'].mean()]))[0]), 
+#         [i+os,i+os], color='k', ls='--', zorder=10)
+#     yticks.append(np.nanmean([i]))
+#     i = i+7
+# # Aesthetics 
+# ax1.set_xlim([0.5e15,10e15])
+# ax1.set_xticks(np.arange(1e15,10e15,1e15))
+# ax1.set_yticks(yticks)
+# ax1.set_yticklabels(citynames)
+# ax1.tick_params(axis='y', left=False, length=0)
+# ax1.set_xlabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', x=0.26, 
+#     color='darkgrey')
+# ax1.tick_params(axis='x', colors='darkgrey')
+# ax1.xaxis.offsetText.set_visible(False)
+# for side in ['right', 'left', 'top', 'bottom']:
+#     ax1.spines[side].set_visible(False)
+# ax1.grid(axis='x', zorder=0, color='darkgrey')
+# ax1.invert_yaxis()
+
+# # # # # Most versus least wealthy
+# i = 0 
+# yticks = []
+# mostwealthy = harmonized.loc[harmonized['AJZAE001'] > 
+#     np.nanpercentile(harmonized['AJZAE001'], 90)]
+# leastwealthy = harmonized.loc[harmonized['AJZAE001'] < 
+#     np.nanpercentile(harmonized['AJZAE001'], 10)]
+# ax2.plot(mostwealthy['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+# ax2.plot(leastwealthy['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+# ax2.plot((np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()]), 
+#     np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+
+#     np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax2.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+# ax2.plot(leastwealthy['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+# ax2.plot((np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()]), 
+#     np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
+#     np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7    
+# mostwealthy = harmonized_rural.loc[harmonized_rural['AJZAE001'] > 
+#     np.nanpercentile(harmonized_rural['AJZAE001'], 90)]
+# leastwealthy = harmonized_rural.loc[harmonized_rural['AJZAE001'] < 
+#     np.nanpercentile(harmonized_rural['AJZAE001'], 10)]
+# ax2.plot(mostwealthy['PRENO2'].mean(), i-os, 'o', color=color_white, 
+#     zorder=12)
+# ax2.plot(leastwealthy['PRENO2'].mean(), i-os, 'o', color=color_non, 
+#     zorder=12)
+# ax2.plot((np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()]), 
+#     np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+
+#     np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax2.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+#     zorder=12)
+# ax2.plot(leastwealthy['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+#     zorder=12)
+# ax2.plot((np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()]), 
+#     np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
+#     np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7  
+# mostwealthy = harmonized_urban.loc[harmonized_urban['AJZAE001'] > 
+#     np.nanpercentile(harmonized_urban['AJZAE001'], 90)]
+# leastwealthy = harmonized_urban.loc[harmonized_urban['AJZAE001'] < 
+#     np.nanpercentile(harmonized_urban['AJZAE001'], 10)]
+# ax2.plot(mostwealthy['PRENO2'].mean(), i-os, 'o', color=color_white, 
+#     zorder=12)
+# ax2.plot(leastwealthy['PRENO2'].mean(), i-os, 'o', color=color_non, 
+#     zorder=12)
+# ax2.plot((np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()]), 
+#     np.min([mostwealthy['PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+
+#     np.abs(np.diff([mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax2.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+#     zorder=12)
+# ax2.plot(leastwealthy['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+#     zorder=12)
+# ax2.plot((np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()]), 
+#     np.min([mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
+#     np.abs(np.diff([mostwealthy['POSTNO2'].mean(), leastwealthy['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7      
+# for city in [newyork, losangeles, chicago, dallas, houston, washington,
+#     miami, philadelphia, atlanta, phoenix, boston, sanfrancisco, 
+#     riverside, detroit, seattle]:
+#     harmonized_city = subset_harmonized_bycountyfips(harmonized, city)
+#     mostwealthy = harmonized_city.loc[harmonized_city['AJZAE001'] > 
+#         np.nanpercentile(harmonized_city['AJZAE001'], 90)]
+#     leastwealthy = harmonized_city.loc[harmonized_city['AJZAE001'] < 
+#         np.nanpercentile(harmonized_city['AJZAE001'], 10)]
+#     ax2.plot(mostwealthy['PRENO2'].mean(), i-os, 'o', color=color_white, 
+#         zorder=12)
+#     ax2.plot(leastwealthy['PRENO2'].mean(), i-os, 'o', color=color_non, 
+#         zorder=12)
+#     ax2.plot((np.min([mostwealthy['PRENO2'].mean(),
+#         leastwealthy['PRENO2'].mean()]), np.min([mostwealthy[
+#         'PRENO2'].mean(),leastwealthy['PRENO2'].mean()])+np.abs(np.diff(
+#         [mostwealthy['PRENO2'].mean(), leastwealthy['PRENO2'].mean()]))[0]), 
+#         [i-os,i-os], color='k', ls='-', zorder=10)    
+#     ax2.plot(mostwealthy['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+#         zorder=12)
+#     ax2.plot(leastwealthy['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+#         zorder=12)
+#     ax2.plot((np.min([mostwealthy['POSTNO2'].mean(),
+#         leastwealthy['POSTNO2'].mean()]), np.min([
+#         mostwealthy['POSTNO2'].mean(),leastwealthy['POSTNO2'].mean()])+
+#         np.abs(np.diff([mostwealthy['POSTNO2'].mean(), 
+#         leastwealthy['POSTNO2'].mean()]))[0]), [i+os,i+os], color='k', 
+#         ls='--', zorder=10)
+#     yticks.append(np.nanmean([i]))
+#     i = i+7
+# # Aesthetics 
+# ax2.set_xlim([0.5e15,10e15])
+# ax2.set_xticks(np.arange(1e15,10e15,1e15))
+# ax2.set_yticks(yticks)
+# ax2.set_yticklabels([])
+# ax2.tick_params(axis='y', left=False)
+# ax2.set_xlabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', x=0.26, 
+#     color='darkgrey')
+# ax2.tick_params(axis='x', colors='darkgrey')
+# ax2.xaxis.offsetText.set_visible(False)
+# for side in ['right', 'left', 'top', 'bottom']:
+#     ax2.spines[side].set_visible(False)
+# ax2.grid(axis='x', zorder=0, color='darkgrey')
+# ax2.invert_yaxis()
+
+# # Most versus least educated
+# i = 0 
+# yticks = []
+# frac_educated = (harmonized.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
+#     harmonized['AJYPE001'])
+# mosteducated = harmonized.iloc[np.where(frac_educated > 
+#     np.nanpercentile(frac_educated, 90))]
+# leasteducated = harmonized.iloc[np.where(frac_educated < 
+#     np.nanpercentile(frac_educated, 10))]
+# ax3.plot(mosteducated['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+# ax3.plot(leasteducated['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+# ax3.plot((np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()]), 
+#     np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()])+
+#     np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax3.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+# ax3.plot(leasteducated['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+# ax3.plot((np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()]), 
+#     np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()])+
+#     np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7    
+# frac_educated = (harmonized_rural.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
+#     harmonized_rural['AJYPE001'])
+# mosteducated = harmonized_rural.iloc[np.where(frac_educated > 
+#     np.nanpercentile(frac_educated, 90))]
+# leasteducated = harmonized_rural.iloc[np.where(frac_educated < 
+#     np.nanpercentile(frac_educated, 10))]
+# ax3.plot(mosteducated['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+# ax3.plot(leasteducated['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+# ax3.plot((np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()]), 
+#     np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()])+
+#     np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax3.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+# ax3.plot(leasteducated['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+# ax3.plot((np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()]), 
+#     np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()])+
+#     np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7    
+# frac_educated = (harmonized_urban.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
+#     harmonized_urban['AJYPE001'])
+# mosteducated = harmonized_urban.iloc[np.where(frac_educated > 
+#     np.nanpercentile(frac_educated, 90))]
+# leasteducated = harmonized_urban.iloc[np.where(frac_educated < 
+#     np.nanpercentile(frac_educated, 10))]
+# ax3.plot(mosteducated['PRENO2'].mean(), i-os, 'o', color=color_white, zorder=12)
+# ax3.plot(leasteducated['PRENO2'].mean(), i-os, 'o', color=color_non, zorder=12)
+# ax3.plot((np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()]), 
+#     np.min([mosteducated['PRENO2'].mean(),leasteducated['PRENO2'].mean()])+
+#     np.abs(np.diff([mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
+#     [i-os,i-os], color='k', ls='-', zorder=10)    
+# ax3.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, zorder=12)
+# ax3.plot(leasteducated['POSTNO2'].mean(), i+os, 'o', color=color_non, zorder=12)
+# ax3.plot((np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()]), 
+#     np.min([mosteducated['POSTNO2'].mean(),leasteducated['POSTNO2'].mean()])+
+#     np.abs(np.diff([mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
+#     [i+os,i+os], color='k', ls='--', zorder=10)
+# yticks.append(np.nanmean([i]))
+# i = i+7    
+# for city in [newyork, losangeles, chicago, dallas, houston, washington,
+#     miami, philadelphia, atlanta, phoenix, boston, sanfrancisco, 
+#     riverside, detroit, seattle]:
+#     harmonized_city = subset_harmonized_bycountyfips(harmonized, city)
+#     frac_educated = (harmonized_city.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
+#         harmonized_city['AJYPE001'])
+#     mosteducated = harmonized_city.iloc[np.where(frac_educated > 
+#         np.nanpercentile(frac_educated, 90))]
+#     leasteducated = harmonized_city.iloc[np.where(frac_educated < 
+#         np.nanpercentile(frac_educated, 10))]
+#     ax3.plot(mosteducated['PRENO2'].mean(), i-os, 'o', color=color_white, 
+#         zorder=12)
+#     ax3.plot(leasteducated['PRENO2'].mean(), i-os, 'o', color=color_non, 
+#         zorder=12)
+#     ax3.plot((np.min([mosteducated['PRENO2'].mean(),
+#         leasteducated['PRENO2'].mean()]), 
+#         np.min([mosteducated['PRENO2'].mean(),
+#         leasteducated['PRENO2'].mean()])+np.abs(np.diff(
+#         [mosteducated['PRENO2'].mean(), leasteducated['PRENO2'].mean()]))[0]), 
+#         [i-os,i-os], color='k', ls='-', zorder=10)    
+#     ax3.plot(mosteducated['POSTNO2'].mean(), i+os, 'o', color=color_white, 
+#         zorder=12)
+#     ax3.plot(leasteducated['POSTNO2'].mean(), i+os, 'o', color=color_non, 
+#         zorder=12)
+#     ax3.plot((np.min([mosteducated['POSTNO2'].mean(), leasteducated[
+#         'POSTNO2'].mean()]), np.min([mosteducated['POSTNO2'].mean(), 
+#         leasteducated['POSTNO2'].mean()])+np.abs(np.diff(
+#         [mosteducated['POSTNO2'].mean(), leasteducated['POSTNO2'].mean()]))[0]), 
+#         [i+os,i+os], color='k', ls='--', zorder=10)
+#     yticks.append(np.nanmean([i]))
+#     i = i+7
+# ax3.set_xlim([0.5e15,10e15])
+# ax3.set_xticks(np.arange(1e15,10e15,1e15))
+# ax3.set_yticks(yticks)
+# ax3.set_yticklabels([])
+# ax3.tick_params(axis='y', left=False)
+# ax3.set_xlabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', x=0.26, 
+#     color='darkgrey')
+# ax3.tick_params(axis='x', colors='darkgrey')
+# ax3.xaxis.offsetText.set_visible(False)
+# for side in ['right', 'left', 'top', 'bottom']:
+#     ax3.spines[side].set_visible(False)
+# ax3.grid(axis='x', zorder=0, color='darkgrey')
+# ax3.invert_yaxis()
+# ax1.set_title('(a) Household income', loc='left', fontsize=10)
+# ax2.set_title('(b) Racial background', loc='left', fontsize=10)
+# ax3.set_title('(c) Educational attainment', loc='left', fontsize=10)
+# plt.subplots_adjust(wspace=0.05, left=0.09, top=0.95, bottom=0.17, 
+#     right=0.98)
+# # Custom legends for different colored scatterpoints
+# custom_lines = [Line2D([0], [0], marker='o', color=color_white, lw=0),
+#     Line2D([0], [0], marker='o', color=color_non, lw=0)]
+# ax1.legend(custom_lines, ['Highest income', 'Lowest income'], 
+#     bbox_to_anchor=(0.48, -0.15), loc=8, ncol=2, fontsize=10, 
+#     frameon=False)
+# custom_lines = [Line2D([0], [0], marker='o', color=color_white, lw=0),
+#     Line2D([0], [0], marker='o', color=color_non, lw=0)]
+# ax2.legend(custom_lines, ['Most White', 'Least White'], 
+#     bbox_to_anchor=(0.48, -0.15), loc=8, ncol=2, fontsize=10, 
+#     frameon=False)
+# custom_lines = [Line2D([0], [0], marker='o', color=color_white, lw=0),
+#     Line2D([0], [0], marker='o', color=color_non, lw=0)]
+# ax3.legend(custom_lines, ['Most educated', 'Least educated'], 
+#     bbox_to_anchor=(0.48, -0.15), loc=8, ncol=2, fontsize=10, 
+#     frameon=False)
+# # Custom legend for baseline vs. lockdown bars
+# ax1t = ax1.twinx()
+# ax1t.axis('off')
+# custom_lines = [Line2D([0], [0], color='k', marker='o', lw=2),
+#     Line2D([0], [0], color='k', marker='o', ls='--', lw=2)]
+# ax1t.legend(custom_lines, ['Baseline', 'Lockdown'], ncol=2, loc=8, 
+#     bbox_to_anchor=(0.525, -0.2), numpoints=2, frameon=False, 
+#     handlelength=5)
+# plt.savefig(DIR_FIGS+'lollipop.png', dpi=500)
+# plt.show()
+
+"""FIGURE SX"""
+# import pandas as pd
+# # NHGIS census information version (may need to change if there are 
+# # updates to census information)
+# nhgis_version = '0003_ds239_20185_2018'
+# # DataFrame that will be filled with harmonzied data for multiple states
+# state_harm = pd.DataFrame()
+# # Loop through states of interest and read in harmonized NO2/census data
+# for FIPS_i in FIPS:
+#     state_harm_i = pd.read_csv(DIR_HARM+'Tropomi_NO2_updated/'+
+#         'Tropomi_NO2_updated_%s_nhgis%s_tract.csv'%(FIPS_i, nhgis_version), 
+#         delimiter=',', header=0, engine='python')
+#     # For states with FIPS codes 0-9, there is no leading zero in their 
+#     # GEOID row, so add one such that all GEOIDs for any particular state
+#     # are identical in length
+#     if FIPS_i in ['01','02','03','04','05','06','07','08','09']:
+#         state_harm_i['GEOID'] = state_harm_i['GEOID'].map(
+#         lambda x: f'{x:0>11}')
+#     # Make GEOID a string and index row 
+#     state_harm_i = state_harm_i.set_index('GEOID')
+#     state_harm_i.index = state_harm_i.index.map(str)
+#     # Make relevant columns floats
+#     col_relevant = ['PRENO2', 'POSTNO2', 'PRENO2APR', 'POSTNO2APR', 'ALLNO2']
+#     state_harm_i = state_harm_i[col_relevant]
+#     for col in col_relevant:
+#         state_harm_i[col] = state_harm_i.loc[:,col].astype(float)    
+#     state_harm = state_harm.append(state_harm_i)    
+# # ONLY FOR URBAN 
+# harmonized_at = harmonized_urban.merge(state_harm, left_index=True, 
+#     right_index=True)
+# # Fraction of White population in tract
+# white = (harmonized_at['AJWNE002']/harmonized_at['AJWBE001'])
+# mostwhite = harmonized_at.iloc[np.where(white > 
+#     np.nanpercentile(white, ptile_upper))]
+# leastwhite = harmonized_at.iloc[np.where(white < 
+#     np.nanpercentile(white, ptile_lower))]
+# # Fraction of population in tract with some college to a Doctorate degree
+# education = (harmonized_at.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
+#     harmonized_at['AJYPE001'])
+# mosteducated = harmonized_at.iloc[np.where(education > 
+#     np.nanpercentile(education, ptile_upper))]
+# leasteducated = harmonized_at.iloc[np.where(education < 
+#     np.nanpercentile(education, ptile_lower))]
+# # Fraction of non-Hispanic  or Latino population in tract
+# ethnicity = (harmonized_at['AJWWE002']/harmonized_at['AJWWE001'])
+# leastethnic = harmonized_at.iloc[np.where(ethnicity > 
+#     np.nanpercentile(ethnicity, ptile_upper))]
+# mostethnic = harmonized_at.iloc[np.where(ethnicity < 
+#     np.nanpercentile(ethnicity, ptile_lower))]
+# # Fraction of population without a vehicle
+# vehicle = 1-harmonized_at['FracNoCar']
+# mostvehicle = harmonized_at.iloc[np.where(vehicle > 
+#     np.nanpercentile(vehicle, ptile_upper))]
+# leastvehicle = harmonized_at.iloc[np.where(vehicle < 
+#     np.nanpercentile(vehicle, ptile_lower))]
+# # Highest vs. lowest income tracts
+# income = harmonized_at['AJZAE001']
+# highincome = harmonized_at.iloc[np.where(income > 
+#     np.nanpercentile(income, ptile_upper))]
+# lowincome = harmonized_at.iloc[np.where(income < 
+#     np.nanpercentile(income, ptile_lower))]
+# fig = plt.figure(figsize=(7,7))
+# ax1 = plt.subplot2grid((3,2),(0,0))
+# ax2 = plt.subplot2grid((3,2),(1,0))
+# ax3 = plt.subplot2grid((3,2),(2,0))
+# ax4 = plt.subplot2grid((3,2),(0,1))
+# ax5 = plt.subplot2grid((3,2),(1,1))
+# ax6 = plt.subplot2grid((3,2),(2,1))
+# # 
+# lefts = [highincome, mostwhite, leastethnic, mosteducated, mostvehicle]
+# rights = [lowincome, leastwhite, mostethnic, leasteducated, leastvehicle]
+# axes = [ax1, ax2, ax3, ax4, ax5]
+# for ax, left, right in zip(axes, lefts, rights): 
+#     bpl = ax.boxplot([left['ALLNO2'].values[~np.isnan(left['ALLNO2'].values)], 
+#         left['PRENO2APR'].values[~np.isnan(left['PRENO2APR'].values)],
+#         left['PRENO2_x'][~np.isnan(left['PRENO2_x'])]], positions=[1,2,3],
+#         whis=[10,90], showfliers=False, patch_artist=True, showcaps=False)
+#     bpr = ax.boxplot([right['ALLNO2'].values[~np.isnan(right['ALLNO2'].values)], 
+#         right['PRENO2APR'].values[~np.isnan(right['PRENO2APR'].values)],
+#         right['PRENO2_x'][~np.isnan(right['PRENO2_x'])]], positions=[5,6,7],
+#         whis=[10,90], showfliers=False, patch_artist=True, showcaps=False)    
+#     for bp in [bpl, bpr]:
+#         for element in ['boxes']:
+#             plt.setp(bp[element][0], color='#0095A8')
+#             plt.setp(bp[element][1], color='darkgrey')    
+#             plt.setp(bp[element][2], color='#FF7043')
+#         for element in ['whiskers']:
+#             plt.setp(bp[element][0], color='#0095A8', linewidth=2)
+#             plt.setp(bp[element][1], color='#0095A8', linewidth=2)
+#             plt.setp(bp[element][2], color='darkgrey', linewidth=2)
+#             plt.setp(bp[element][3], color='darkgrey', linewidth=2)
+#             plt.setp(bp[element][4], color='#FF7043', linewidth=2)
+#             plt.setp(bp[element][5], color='#FF7043', linewidth=2)
+#         for element in ['medians']:
+#             plt.setp(bp[element], color='w', linewidth=2) 
+#     ax.set_xlim([0,8])
+#     ax.set_xticks([2,6])
+#     ax.set_ylim([0.1e16,1.2e16])
+# # Labels 
+# ax1.set_title('(a) Household income', loc='left', fontsize=10)
+# ax2.set_title('(b) Racial background', loc='left', fontsize=10)
+# ax3.set_title('(c) Ethnic background', loc='left', fontsize=10)
+# ax4.set_title('(d) Educational attainment',loc='left', fontsize=10)
+# ax5.set_title('(e) Household vehicle ownership',loc='left', fontsize=10)
+# ax1.set_xticklabels(['Highest income', 'Lowest income'], y=0.025)
+# ax2.set_xticklabels(['Most White', 'Least White'], y=0.025)
+# ax3.set_xticklabels(['Most Hispanic','Least Hispanic'], y=0.025)
+# ax4.set_xticklabels(['Most educated','Least educated'], y=0.025)
+# ax5.set_xticklabels(['Highest vehicle\nownership','Lowest vehicle\nownership'], y=0.025)
+# for ax in [ax1, ax2, ax3, ax4, ax5]:
+#     ax.yaxis.offsetText.set_visible(False)
+#     ax.set_yticks([2.5e15, 5e15, 7.5e15, 10e15])
+#     ax.set_yticklabels(['2.5','5.0','7.5','10'])    
+#     ax.tick_params(axis='x', which='both', bottom=False)
+# ax4.set_yticklabels([])
+# ax5.set_yticklabels([])    
+# ax1.set_ylabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', fontsize=10)
+# ax2.set_ylabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', fontsize=10)
+# ax3.set_ylabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', fontsize=10)
+# # Create fake legend
+# np.random.seed(10)
+# collectn_1 = np.random.normal(100, 10, 200)    
+# leg = ax6.boxplot([collectn_1, collectn_1, collectn_1], 
+#     positions=[0.5,2,3.5], whis=[10,90], vert=0, showfliers=False, patch_artist=True, 
+#     showcaps=False)
+# for element in ['boxes']:
+#     plt.setp(leg[element][0], color='#0095A8')
+#     plt.setp(leg[element][1], color='darkgrey')    
+#     plt.setp(leg[element][2], color='#FF7043')
+# for element in ['whiskers']:
+#     plt.setp(leg[element][0], color='#0095A8', linewidth=2)
+#     plt.setp(leg[element][1], color='#0095A8', linewidth=2)
+#     plt.setp(leg[element][2], color='darkgrey', linewidth=2)
+#     plt.setp(leg[element][3], color='darkgrey', linewidth=2)
+#     plt.setp(leg[element][4], color='#FF7043', linewidth=2)
+#     plt.setp(leg[element][5], color='#FF7043', linewidth=2)
+# for element in ['medians']:
+#     plt.setp(leg[element], color='w', linewidth=2)
+# ax6.set_xlim([65,115])
+# ax6.set_ylim([-1,5])
+# ax6.annotate('April 1 -\nJune 30, 2019', ha='right', xy=(86,3))
+# ax6.annotate('March 13 -\nJune 13, 2019', ha='right', xy=(86,1.5))
+# ax6.annotate('May 1, 2018 -\nDecember 31, 2019', ha='right', xy=(86,0.))
+# ax6.axis('off')
+# plt.subplots_adjust(hspace=0.4, top=0.95, bottom=0.05)
+# plt.savefig(DIR_FIGS+'figS1.png', dpi=300)
+
+"""FIGURE 3"""
+# harmonized = harmonized_urban 
+# import numpy as np
+# import scipy.stats as st
+# import matplotlib as mpl
+# import matplotlib.pyplot as plt
+# from scipy import stats
+# priroad_byincome = []
+# byincome_cilow, byincome_cihigh = [], []
+# priroad_byrace = []
+# byrace_cilow, byrace_cihigh = [], []
+# priroad_byeducation = []
+# byeducation_cilow, byeducation_cihigh = [], []
+# priroad_byethnicity = []
+# byethnicity_cilow, byethnicity_cihigh = [], []
+# priroad_byvehicle = []
+# byvehicle_cilow, byvehicle_cihigh = [], []
+# pri_density_mean = []
+# dno2_mean = []
+# ci_low, ci_high = [], []
+# # Find tracts with a change in NO2 in the given range
+# for ptilel, ptileu in zip(np.arange(0,100,10), np.arange(10,110,10)):    
+#     dno2 = harmonized.loc[(harmonized['NO2_ABS']>
+#         np.nanpercentile(harmonized['NO2_ABS'], ptilel)) & (
+#         harmonized['NO2_ABS']<=np.nanpercentile(harmonized['NO2_ABS'], ptileu))]
+#     # Find mean primary/secondary road density within 1 km and change in 
+#     # NO2 for every percentile range
+#     pri_density_mean.append(dno2['PrimaryWithin1'].mean())
+#     dno2_mean.append(dno2['NO2_ABS'].mean())
+#     ci = st.t.interval(0.95, len(dno2)-1, loc=np.mean(dno2['PrimaryWithin1']), 
+#         scale=st.sem(dno2['PrimaryWithin1']))    
+#     ci_low.append(ci[0])
+#     ci_high.append(ci[1])    
+# income = harmonized['AJZAE001']
+# race = (harmonized['AJWNE002']/harmonized['AJWBE001'])
+# education = (harmonized.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/harmonized['AJYPE001'])
+# ethnicity = (harmonized['AJWWE002']/harmonized['AJWWE001'])
+# vehicle = 1-harmonized['FracNoCar']
+# for ptilel, ptileu in zip(np.arange(0,100,10), np.arange(10,110,10)):    
+#     # Primary road density and confidence intervals by income
+#     decile_income = harmonized.loc[(income>
+#         np.nanpercentile(income, ptilel)) & (
+#         income<=np.nanpercentile(income, ptileu))]
+#     ci = st.t.interval(0.95, len(decile_income)-1, 
+#         loc=np.mean(decile_income['PrimaryWithin1']), scale=st.sem(
+#         decile_income['PrimaryWithin1']))
+#     priroad_byincome.append(decile_income['PrimaryWithin1'].mean())        
+#     byincome_cilow.append(ci[0])
+#     byincome_cihigh.append(ci[1])
+#     # By race            
+#     decile_race = harmonized.loc[(race>
+#         np.nanpercentile(race, ptilel)) & (
+#         race<=np.nanpercentile(race, ptileu))] 
+#     ci = st.t.interval(0.95, len(decile_race)-1, 
+#         loc=np.mean(decile_race['PrimaryWithin1']), scale=st.sem(
+#         decile_race['PrimaryWithin1']))
+#     priroad_byrace.append(decile_race['PrimaryWithin1'].mean())    
+#     byrace_cilow.append(ci[0])
+#     byrace_cihigh.append(ci[1])            
+#     # By education
+#     decile_education = harmonized.loc[(education>
+#         np.nanpercentile(education, ptilel)) & (
+#         education<=np.nanpercentile(education, ptileu))]      
+#     ci = st.t.interval(0.95, len(decile_education)-1, 
+#         loc=np.mean(decile_education['PrimaryWithin1']), scale=st.sem(
+#         decile_education['PrimaryWithin1']))
+#     priroad_byeducation.append(decile_education['PrimaryWithin1'].mean())    
+#     byeducation_cilow.append(ci[0])
+#     byeducation_cihigh.append(ci[1])
+#     # By ethnicity
+#     decile_ethnicity = harmonized.loc[(ethnicity>
+#         np.nanpercentile(ethnicity, ptilel)) & (
+#         ethnicity<=np.nanpercentile(ethnicity, ptileu))]
+#     ci = st.t.interval(0.95, len(decile_ethnicity)-1, 
+#         loc=np.mean(decile_ethnicity['PrimaryWithin1']), scale=st.sem(
+#         decile_ethnicity['PrimaryWithin1']))
+#     priroad_byethnicity.append(decile_ethnicity['PrimaryWithin1'].mean())    
+#     byethnicity_cilow.append(ci[0])
+#     byethnicity_cihigh.append(ci[1])
+#     # By vehicle ownership
+#     decile_vehicle = harmonized.loc[(vehicle>
+#         np.nanpercentile(vehicle, ptilel)) & (
+#         vehicle<=np.nanpercentile(vehicle, ptileu))]    
+#     ci = st.t.interval(0.95, len(decile_vehicle)-1, 
+#         loc=np.mean(decile_vehicle['PrimaryWithin1']), scale=st.sem(
+#         decile_vehicle['PrimaryWithin1']))
+#     priroad_byvehicle.append(decile_vehicle['PrimaryWithin1'].mean())    
+#     byvehicle_cilow.append(ci[0])
+#     byvehicle_cihigh.append(ci[1])    
+# # Initialize figure, axis
+# fig = plt.figure(figsize=(8,5))
+# ax1 = plt.subplot2grid((1,1),(0,0))
+# color_density = 'k'
+# color1 = '#0095A8'
+# color2 = '#FF7043'
+# color3 = '#5D69B1'
+# color4 = '#CC3A8E'
+# color5 = '#4daf4a'
+# # Plotting
+# ax1.plot(pri_density_mean, lw=2, marker='o', 
+#     markeredgecolor=color_density, markerfacecolor='w', zorder=10,
+#     color=color_density, clip_on=False)
+# ax1.fill_between(np.arange(0,10,1),ci_low, ci_high, facecolor=color_density,
+#     alpha=0.2)
+# ax1.plot(priroad_byincome, ls='-', lw=2, color=color1, zorder=11)
+# ax1.plot(priroad_byeducation, ls='-', lw=2, color=color2, zorder=11)
+# ax1.plot(priroad_byrace, ls='-', lw=2, color=color3, zorder=11)
+# ax1.plot(priroad_byethnicity, ls='-', lw=2, color=color4, zorder=11)
+# ax1.plot(priroad_byvehicle, ls='-', lw=2, color=color5, zorder=11)
+# # Legend
+# ax1.text(4.5, 0.62, '$\mathregular{\Delta}$ NO$_{2}$', fontsize=12, 
+#     color=color_density, ha='center', va='center')
+# ax1.annotate('Smaller',xy=(4.9,0.62),xytext=(6,0.62), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color_density), 
+#     color=color_density, fontsize=12)
+# ax1.annotate('Larger',xy=(4.1,0.62),xytext=(2.6,0.62), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color_density), 
+#     color=color_density, fontsize=12)
+# ax1.text(4.5, 0.585, 'Income', fontsize=12, va='center',
+#     color=color1, ha='center')
+# ax1.annotate('Lower',xy=(4.9,0.585),xytext=(6,0.585), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color1), 
+#     fontsize=12, color=color1)
+# ax1.annotate('Higher',xy=(4.1,0.585),xytext=(2.6,0.585), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color1), 
+#     fontsize=12, color=color1)
+# ax1.text(4.5, 0.55, 'Education', fontsize=12, 
+#     color=color2, va='center', ha='center')
+# ax1.annotate('More',xy=(5.1,0.55),xytext=(6,0.55), va='center', 
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), fontsize=12,
+#     color=color2)
+# ax1.annotate('Less',xy=(3.9,0.55),xytext=(2.6,0.55), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), 
+#     fontsize=12, color=color2)
+# ax1.text(4.5, 0.515, 'White', fontsize=12, va='center',
+#     color=color3, ha='center')
+# ax1.annotate('More',xy=(4.85,0.515),xytext=(6,0.515), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), color=color3,
+#     fontsize=12)
+# ax1.annotate('Less',xy=(4.15,0.515),xytext=(2.6,0.515), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), fontsize=12, 
+#     color=color3)
+# ax1.text(4.5, 0.48, 'Hispanic', fontsize=12, 
+#     color=color4, ha='center', va='center')
+# ax1.annotate('Less',xy=(4.95,0.48),xytext=(6,0.48), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color4), fontsize=12, 
+#     color=color4)
+# ax1.annotate('More',xy=(4.05,0.48),xytext=(2.6,0.48), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color4), fontsize=12,
+#     color=color4)
+# ax1.text(4.5, 0.445, 'Vehicle ownership', fontsize=12, ha='center',
+#     va='center', color=color5)
+# ax1.annotate('More',xy=(5.5,0.445),xytext=(6,0.445), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color5), fontsize=12, 
+#     color=color5)
+# ax1.annotate('Less',xy=(3.55,0.445),xytext=(2.6,0.445), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color5), fontsize=12,
+#     color=color5)
+# # Aesthetics 
+# ax1.set_xlim([0,9])
+# ax1.set_xticks(np.arange(0,10,1))
+# # ax1.set_xticklabels(['(0-10]','(10-20]','(20-30]','(30-40]','(40-50]',
+# #     '(50-60]','(60-70]','(70-80]','(80-90]','(90-100]'])
+# ax1.set_xticklabels(['Lowest', '2', '3', '4', '5', '6', '7', '8', '9', 'Highest'])
+# ax1.set_ylim([0.05,0.65])
+# ax1.set_xlabel('Decile', fontsize=12)
+# ax1.set_ylabel('Primary road density [roads (1 km radius)$^{-1}$]', 
+#     fontsize=12)
+# plt.savefig(DIR_FIGS+'line_decile_primaryroads.png',dpi=600)
+# # ax1.text(1, 0.62, 'Largest NO$_{2}$ decrease', fontsize=12, 
+# #     color=color_density)
+# # ax1.text(1, 0.585, 'Lowest income', fontsize=12, 
+# #     color=color1)
+# # ax1.text(1, 0.55, 'Least educated', fontsize=12, 
+# #     color=color2)
+# # ax1.text(1, 0.515, 'Least White', fontsize=12, 
+# #     color=color3)
+# # ax1.text(1, 0.48, 'Most Hispanic', fontsize=12, 
+# #     color=color4)
+# # ax1.text(1, 0.445, 'Lowest vehicle ownership', fontsize=12, color=color5)
+# # ax1.text(8.8, 0.62, 'Smallest NO$_{2}$ decrease', fontsize=12, 
+# #     color=color_density, ha='right')
+# # ax1.text(8.8, 0.585, 'Largest income', fontsize=12, 
+# #     color=color1, ha='right')
+# # ax1.text(8.8, 0.55, 'Most educated', fontsize=12, 
+# #     color=color2, ha='right')
+# # ax1.text(8.8, 0.515, 'Most White', fontsize=12, 
+# #     color=color3, ha='right')
+# # ax1.text(8.8, 0.48, 'Least Hispanic', fontsize=12, 
+# #     color=color4, ha='right')
+# # ax1.text(8.8, 0.445, 'Highest vehicle ownership', fontsize=12, color=color5,
+# #     ha='right')

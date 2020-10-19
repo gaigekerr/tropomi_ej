@@ -1821,7 +1821,7 @@ def fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg):
                 edgecolor='k'), zorder=15)        
             ax.add_feature(counties, facecolor='None', lw=0.5, edgecolor='k', 
                 zorder=11)    
-    # Add axis titles 
+    # Add axis titles
     ax1.set_title('(a) New York', loc='left')
     ax2.set_title('(b) Atlanta', loc='left')
     ax3.set_title('(c) Detroit', loc='left')
@@ -1832,8 +1832,8 @@ def fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg):
     ax8.set_title('(h)', loc='left')
     ax9.set_title('(i)', loc='left')
     # Add axis labels
-    ax1.text(-0.1, 0.5, '($\Delta$ NO$_{2}$ - $\Delta$ NO$_{2\mathregular{,'+
-        ' city}}$)/10$^\mathregular{15}$\n[molec cm$^{\mathregular{-2}}$]', 
+    ax1.text(-0.1, 0.5, '$\Delta$ NO$_{2\mathregular{,\:local}}$/10$'+
+        '^\mathregular{15}$\n[molec cm$^{\mathregular{-2}}$]', 
         ha='center', rotation='vertical', rotation_mode='anchor',
         transform=ax1.transAxes, fontsize=12)
     ax4.text(-0.1, 0.5, 'Income [$]', ha='center', rotation='vertical', 
@@ -1844,7 +1844,7 @@ def fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg):
         ax.set_aspect('auto')
         ax.outline_patch.set_zorder(20)
     plt.subplots_adjust(left=0.07, top=0.95, bottom=0.05, wspace=0.3)
-    plt.savefig(DIR_FIGS+'fig4.pdf', dpi=1000)
+    plt.savefig(DIR_FIGS+'fig4.png', dpi=1000)
     return
 
 def figS1(harmonized, harmonized_rural):
@@ -2721,13 +2721,13 @@ harmonized = merge_harmonized_vehicleownership(harmonized)
 harmonized_urban, harmonized_rural = split_harmonized_byruralurban(
     harmonized)
 
-# # Calculate percentage of tracts without co-located TROPOMI retrievals 
-# print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
-#     harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
-# print('%.1f of urban tracts have NO2 retrievals'%(len(np.where(np.isnan(
-#     harmonized_urban['PRENO2'])==False)[0])/len(harmonized_urban)*100.))
-# print('%.1f of rural tracts have NO2 retrievals'%(len(np.where(np.isnan(
-#     harmonized_rural['PRENO2'])==False)[0])/len(harmonized_rural)*100.))
+# Calculate percentage of tracts without co-located TROPOMI retrievals 
+print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
+    harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
+print('%.1f of urban tracts have NO2 retrievals'%(len(np.where(np.isnan(
+    harmonized_urban['PRENO2'])==False)[0])/len(harmonized_urban)*100.))
+print('%.1f of rural tracts have NO2 retrievals'%(len(np.where(np.isnan(
+    harmonized_rural['PRENO2'])==False)[0])/len(harmonized_rural)*100.))
 
 # Figures
 fig1(harmonized)

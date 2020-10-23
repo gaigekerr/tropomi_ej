@@ -2282,7 +2282,7 @@ def figS1(harmonized, harmonized_rural):
             ax.spines[pos].set_visible(False)
             ax.spines[pos].set_visible(False)    
     for ax in [ax1,ax3,ax5,ax1b,ax3b,ax5b]:
-        ax.set_yticklabels(['Smallest gains', 'Average', 'Largest gains'], 
+        ax.set_yticklabels(['Smallest drops', 'Average', 'Largest drops'], 
             fontsize=10)
     # Axis titles
     ax1.set_title('(a) $\Delta\:$NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', 
@@ -2699,6 +2699,147 @@ def figS3(harmonized_urban):
     plt.savefig(DIR_FIGS+'figS3.pdf', dpi=1000)
     return
     
+def figS4():
+    """
+    """
+    def get_merged_csv(flist, **kwargs):
+        """Function reads CSV files in the list comprehension loop, this list of
+        DataFrames will be passed to the pd.concat() function which will return 
+        single concatenated DataFrame. Adapted from: 
+        https://stackoverflow.com/questions/35973782/reading-multiple-csv-
+        files-concatenate-list-of-file-names-them-into-a-singe-dat
+        """
+        from dask import dataframe as dd
+        return dd.concat([dd.read_csv(f, **kwargs) for f in flist])
+    
+    import time
+    start_time = time.time()
+    print('# # # # Loading AQS NO2 ...') 
+    import numpy as np
+    from decimal import Decimal
+    from dask import dataframe as dd
+    import pandas as pd
+    import sys
+    sys.path.append('/Users/ghkerr/phd/utils/')
+    from geo_idx import geo_idx
+    PATH_AQS = '/Users/ghkerr/GW/data/aqs/'
+    years = [2019]
+    date_start, date_end = '2019-03-13', '2019-06-13'
+    dtype = {'State Code' : np.str,'County Code' : np.str,'Site Num' : np.str,
+        'Parameter Code' : np.str, 'POC' : np.str, 'Latitude' : np.float64,
+        'Longitude' : np.float64, 'Datum' : np.str, 'Parameter Name' : np.str,
+        'Date Local' : np.str, 'Time Local' : np.str, 'Date GMT' : np.str,
+        'Time GMT' : np.str, 'Sample Measurement' : np.float64, 
+        'Units of Measure' : np.str, 'MDL' : np.str, 'Uncertainty' : np.str,
+        'Qualifier' : np.str, 'Method Type' : np.str, 'Method Code' : np.str,
+        'Method Name' : np.str, 'State Name' : np.str, 
+        'County Name' : np.str, 'Date of Last Change' : np.str}
+    filenames_no2 = []
+    # Fetch file names for years of interest
+    for year in years:
+        filenames_no2.append(PATH_AQS+'hourly_42602_%s.csv'%year)
+    filenames_no2.sort()
+    # Read multiple CSV files (yearly) into Pandas dataframe 
+    aqs_no2 = get_merged_csv(filenames_no2, dtype=dtype, 
+        usecols=list(dtype.keys()))
+    # Create site ID column 
+    aqs_no2['Site ID'] = aqs_no2['State Code']+'-'+\
+        aqs_no2['County Code']+'-'+aqs_no2['Site Num']
+    # Drop unneeded columns; drop latitude/longitude coordinates for 
+    # temperature observations as the merging of the O3 and temperature 
+    # DataFrames will supply these coordinates 
+    to_drop = ['Parameter Code', 'POC', 'Datum', 'Parameter Name',
+        'Date GMT', 'Time GMT', 'Units of Measure', 'MDL', 'Uncertainty', 
+        'Qualifier', 'Method Type', 'Method Code', 'Method Name', 'State Name',
+        'County Name', 'Date of Last Change', 'State Code', 'County Code', 
+        'Site Num']
+    aqs_no2 = aqs_no2.drop(to_drop, axis=1)
+    # Select months in measuring period     
+    aqs_no2 = aqs_no2.loc[dd.to_datetime(aqs_no2['Date Local']).isin(
+        pd.date_range(date_start,date_end))]
+    aqs_no2 = aqs_no2.groupby(['Site ID']).mean()
+    aqs_no2 = aqs_no2.compute()
+    # Loop through rows (stations) and find closest TROPOMI grid cell
+    tropomi_no2_atstations = []
+    for row in np.arange(0, len(aqs_no2), 1):
+        aqs_no2_station = aqs_no2.iloc[row]
+        lng_station = aqs_no2_station['Longitude']
+        lat_station = aqs_no2_station['Latitude']
+        lng_tropomi_near = geo_idx(lng_station, lng_dg)
+        lat_tropomi_near = geo_idx(lat_station, lat_dg)
+        if (lng_tropomi_near is None) or (lat_tropomi_near is None):
+            tropomi_no2_atstations.append(np.nan)
+        else:
+            tropomi_no2_station = no2_pre_dg[lat_tropomi_near,lng_tropomi_near]
+            tropomi_no2_atstations.append(tropomi_no2_station)
+    aqs_no2['TROPOMINO2'] = tropomi_no2_atstations
+    # Site IDs for on-road monitoring sites 
+    # from https://www3.epa.gov/ttnamti1/nearroad.html
+    onroad = ['13-121-0056','13-089-0003','48-453-1068','06-029-2019',
+        '24-027-0006','24-005-0009','01-073-2059','16-001-0023','25-025-0044',
+        '25-017-0010','36-029-0023','37-119-0045','17-031-0218','17-031-0118',
+        '39-061-0048','39-035-0073','39-049-0038','48-113-1067','48-439-1053',
+        '08-031-0027','08-031-0028','19-153-6011','26-163-0093','26-163-0095',
+        '06-019-2016','09-003-0025','48-201-1066','48-201-1052','18-097-0087',
+        '12-031-0108','29-095-0042','32-003-1501','32-003-1502','06-059-0008',
+        '06-037-4008','21-111-0075','47-157-0100','12-011-0035','12-086-0035',
+        '55-079-0056','27-053-0962','27-037-0480','47-037-0040','22-071-0021',
+        '34-003-0010','36-081-0125','40-109-0097','12-095-0009','42-101-0075',
+        '42-101-0076','04-013-4019','04-013-4020','42-003-1376','41-067-0005',
+        '44-007-0030','37-183-0021','51-760-0025','06-071-0026','06-071-0027', 
+        '36-055-0015','06-067-0015','49-035-4002','48-029-1069','06-073-1017',
+        '06-001-0012','06-001-0013','06-001-0015','06-085-0006','72-061-0006',
+        '53-033-0030','53-053-0024','29-510-0094','29-189-0016','12-057-0113',
+        '12-057-1111','12-103-0027','51-059-0031','11-001-0051']
+    fig = plt.figure()
+    ax = plt.subplot2grid((1,1),(0,0))
+    color_white = '#0095A8'
+    color_non = '#FF7043'
+    # Select mobile sites vs other AQS sites
+    aqs_onroad = aqs_no2.loc[aqs_no2.index.isin(onroad)]
+    aqs_other = aqs_no2.loc[~aqs_no2.index.isin(onroad)]
+    # Plotting
+    ax.plot(aqs_onroad['TROPOMINO2'].values, 
+        aqs_onroad['Sample Measurement'].values, 'o', markersize=3, 
+        label='Near-road', color='darkgrey')
+    ax.plot(aqs_other['TROPOMINO2'].values, 
+        aqs_other['Sample Measurement'].values, 'ko', markersize=4, 
+        label='Non-near-road')
+    ax.set_xlabel('TROPOMI NO$_{2}$/10$^{16}$ [molec cm$^{-2}$]', fontsize=12)
+    ax.set_ylabel('AQS NO$_{2}$ [ppbv]', fontsize=12)
+    ax.xaxis.offsetText.set_visible(False)
+    # Line of best fit for non-near road 
+    idx = np.isfinite(aqs_other['TROPOMINO2'].values) & \
+        np.isfinite(aqs_other['Sample Measurement'].values)
+    m, b = np.polyfit(aqs_other['TROPOMINO2'].values[idx], 
+        aqs_other['Sample Measurement'].values[idx], 1)
+    ax.plot(np.sort(aqs_other['TROPOMINO2'].values), (m*
+        np.sort(aqs_other['TROPOMINO2'].values)+b), color=color_non, 
+        label='Linear fit')
+    print('Check to ensure that the plot says'+
+        ' %.2E, as this is hard-coded in!'%Decimal(m))
+    ax.text(0.05e16, 20, 'm = 1.5 x 10$^{-15}$ ppbv (molec cm$^{-2}$)$^{-1}$'+
+        '\nb = %.1f ppbv'%(b), color=color_non, fontsize=12)
+    plt.legend(frameon=False, loc=4, fontsize=12)
+    ax.set_xlim([0,1.25e16])
+    ax.set_ylim([0,26])
+    plt.savefig(DIR_FIGS+'figS4.pdf', dpi=1000)
+    # # Most and least polluted collocated NO2 from TROPOMI
+    # tropomi_90 = aqs_other['TROPOMINO2'].values[np.where(
+    #     aqs_other['TROPOMINO2'].values > np.nanpercentile(
+    #     aqs_other['TROPOMINO2'].values, 90))].mean()
+    # tropomi_10 = aqs_other['TROPOMINO2'].values[np.where(
+    #     aqs_other['TROPOMINO2'].values < np.nanpercentile(
+    #     aqs_other['TROPOMINO2'].values, 10))].mean()
+    # # AQS NO2 at most and least polluted TROPOMI NO2 sites
+    # aqs_90 = aqs_other['Sample Measurement'].values[np.where(
+    #     aqs_other['TROPOMINO2'].values > np.nanpercentile(
+    #     aqs_other['TROPOMINO2'].values, 90))].mean()
+    # aqs_10 = aqs_other['Sample Measurement'].values[np.where(
+    #     aqs_other['TROPOMINO2'].values < np.nanpercentile(
+    #     aqs_other['TROPOMINO2'].values, 10))].mean()    
+    return 
+
 import netCDF4 as nc
 # 13 March - 13 June 2019 and 2020 average NO2
 no2_pre_dg = nc.Dataset(DIR_TROPOMI+
@@ -2737,3 +2878,65 @@ fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg)
 figS1(harmonized, harmonized_rural)
 figS2(harmonized, harmonized_rural, harmonized_urban)
 figS3(harmonized_urban)
+figS4()
+
+
+# # Plot location of AQS sites 
+# import cartopy.crs as ccrs
+# import cartopy
+# import cartopy.feature as cfeature
+# extent = [-125, -65, 24, 50.5]
+# extent = [-122, -116, 32.5, 36]
+# # central_lon = np.mean(extent[:2])
+# # central_lat = np.mean(extent[2:])
+# # Plot mean NO2 concentrations
+# plt.figure(figsize=(12, 6))
+# ax = plt.axes(projection=ccrs.PlateCarree())
+# ax.set_extent(extent)
+# ax.add_feature(cartopy.feature.OCEAN, zorder=0)
+# ax.add_feature(cartopy.feature.LAND, edgecolor='black', zorder=0)
+# ax.add_feature(cartopy.feature.LAKES, edgecolor='black', zorder=0)
+# mb = ax.scatter(aqs_no2['Longitude'].values, aqs_no2['Latitude'].values,
+#     c=aqs_no2['Sample Measurement'], transform=ccrs.PlateCarree())
+# plt.colorbar(mb, label='NO$_{2}$ [ppbv]')
+# plt.savefig('/Users/ghkerr/Desktop/no2_aqs_mean_ca.png', dpi=300)
+# plt.show()
+# # Plot AQS stations where NO2 is < 1 and >= 1
+# where_lt1 = aqs_no2.loc[aqs_no2['Sample Measurement']<1.]
+# where_gt1 = aqs_no2.loc[aqs_no2['Sample Measurement']>=1.]
+# plt.figure(figsize=(12, 6))
+# ax = plt.axes(projection=ccrs.PlateCarree())
+# ax.set_extent(extent)
+# ax.add_feature(cartopy.feature.OCEAN, zorder=0)
+# ax.add_feature(cartopy.feature.LAND, edgecolor='black', zorder=0)
+# ax.add_feature(cartopy.feature.LAKES, edgecolor='black', zorder=0)
+# mb = ax.plot(where_gt1['Longitude'].values, where_gt1['Latitude'].values,
+#     'ro', transform=ccrs.PlateCarree(), label='NO$_{2}$ $\geq$ 1 ppbv')
+# mb = ax.plot(where_lt1['Longitude'].values, where_lt1['Latitude'].values,
+#     'ko', transform=ccrs.PlateCarree(), label='NO$_{2}$ < 1 ppbv')
+# plt.legend()
+# plt.savefig('/Users/ghkerr/Desktop/no2_aqs_threshold_ca.png', dpi=300)
+# plt.show()
+# ax.add_feature(cartopy.feature.RIVERS)
+# tropomi_10_thresh = np.nanpercentile(aqs_no2_sort['TROPOMINO2'].values, 10)
+# tropomi_90_thresh = np.nanpercentile(aqs_no2_sort['TROPOMINO2'].values, 90)
+# ax.vlines(x=tropomi_90_thresh, ymin=ax.get_ylim()[0], ymax=ax.get_ylim()[1], 
+#     color=color_white)
+# ax.text(tropomi_90_thresh+0.02e16, 18, 'Most polluted\n', 
+#     rotation=90,color=color_white)
+# ax.vlines(x=tropomi_10_thresh, ymin=ax.get_ylim()[0], ymax=ax.get_ylim()[1], 
+#     color=color_white)
+# ax.text(tropomi_10_thresh-0.1e16, 18, 'Least polluted\n', 
+#     rotation=270, color=color_white)
+# # Plot best fit 
+# m, b = np.polyfit(aqs_no2_sort['TROPOMINO2'].values[:-6], 
+#     aqs_no2_sort['Sample Measurement'].values[:-6], 1)
+# ax.plot(aqs_no2_sort['TROPOMINO2'].values[:-6], m*aqs_no2_sort['TROPOMINO2'].values[:-6] + b)
+# # Plot best fit forced through zero 
+# # Our model is y = a * x, so things are quite simple, in this case...
+# # x needs to be a column vector instead of a 1D vector for this, however.
+# # https://stackoverflow.com/questions/9990789/how-to-force-zero-
+# # interception-in-linear-regression
+# x = aqs_no2_sort['TROPOMINO2'].values[:-6][:,np.newaxis]
+# a, _, _, _ = np.linalg.lstsq(x, 
+#     aqs_no2_sort['Sample Measurement'].values[:-6], rcond=None)

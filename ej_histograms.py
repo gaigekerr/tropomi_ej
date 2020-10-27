@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Jul 12 15:21:23 2020
+Generate plots for Kerr, G.H, Goldberg, D.L., and Anenberg, S.C. (2020). 
+COVID-19 lockdowns reveal pronounced disparities in nitrogen dioxide pollution
+levels. Created on Sun Jul 12 15:21:23 2020
 
 @author: ghkerr
 """
@@ -2201,11 +2203,11 @@ def figS4():
         filenames_no2.append(PATH_AQS+'hourly_42602_%s.csv'%year)
     filenames_no2.sort()
     # Read multiple CSV files (yearly) into Pandas dataframe 
-    aqs_no2 = get_merged_csv(filenames_no2, dtype=dtype, 
+    aqs_no2_raw = get_merged_csv(filenames_no2, dtype=dtype, 
         usecols=list(dtype.keys()))
     # Create site ID column 
-    aqs_no2['Site ID'] = aqs_no2['State Code']+'-'+\
-        aqs_no2['County Code']+'-'+aqs_no2['Site Num']
+    aqs_no2_raw['Site ID'] = aqs_no2_raw['State Code']+'-'+\
+        aqs_no2_raw['County Code']+'-'+aqs_no2_raw['Site Num']
     # Drop unneeded columns; drop latitude/longitude coordinates for 
     # temperature observations as the merging of the O3 and temperature 
     # DataFrames will supply these coordinates 
@@ -2214,12 +2216,14 @@ def figS4():
         'Qualifier', 'Method Type', 'Method Code', 'Method Name', 'State Name',
         'County Name', 'Date of Last Change', 'State Code', 'County Code', 
         'Site Num']
-    aqs_no2 = aqs_no2.drop(to_drop, axis=1)
+    aqs_no2_raw = aqs_no2_raw.drop(to_drop, axis=1)
     # Select months in measuring period     
-    aqs_no2 = aqs_no2.loc[dd.to_datetime(aqs_no2['Date Local']).isin(
+    aqs_no2_raw = aqs_no2_raw.loc[dd.to_datetime(aqs_no2_raw['Date Local']).isin(
         pd.date_range(date_start,date_end))]
-    aqs_no2 = aqs_no2.groupby(['Site ID']).mean()
+    aqs_no2 = aqs_no2_raw.groupby(['Site ID']).mean()
+    # Turns lazy Dask collection into its in-memory equivalent
     aqs_no2 = aqs_no2.compute()
+    aqs_no2_raw = aqs_no2_raw.compute()
     # Loop through rows (stations) and find closest TROPOMI grid cell
     tropomi_no2_atstations = []
     for row in np.arange(0, len(aqs_no2), 1):
@@ -2252,8 +2256,12 @@ def figS4():
         '06-001-0012','06-001-0013','06-001-0015','06-085-0006','72-061-0006',
         '53-033-0030','53-053-0024','29-510-0094','29-189-0016','12-057-0113',
         '12-057-1111','12-103-0027','51-059-0031','11-001-0051']
-    fig = plt.figure()
-    ax = plt.subplot2grid((1,1),(0,0))
+    fig = plt.figure(figsize=(7,9))
+    ax = plt.subplot2grid((2,1),(0,0))
+    ax2 = plt.subplot2grid((2,1),(1,0))
+    # Axis titles
+    ax.set_title('(a)', loc='left', fontsize=12)
+    ax2.set_title('(b)', loc='left', fontsize=12)
     color_white = '#0095A8'
     color_non = '#FF7043'
     # Select mobile sites vs other AQS sites
@@ -2265,9 +2273,10 @@ def figS4():
         label='Near-road', color='darkgrey')
     ax.plot(aqs_other['TROPOMINO2'].values, 
         aqs_other['Sample Measurement'].values, 'ko', markersize=4, 
-        label='Non-near-road')
+        label='Not near-road')
     ax.set_xlabel('TROPOMI NO$_{2}$/10$^{16}$ [molec cm$^{-2}$]', fontsize=12)
     ax.set_ylabel('AQS NO$_{2}$ [ppbv]', fontsize=12)
+    ax.legend(frameon=False, loc=4, fontsize=12)
     ax.xaxis.offsetText.set_visible(False)
     # Line of best fit for non-near road 
     idx = np.isfinite(aqs_other['TROPOMINO2'].values) & \
@@ -2279,68 +2288,119 @@ def figS4():
         label='Linear fit')
     print('Check to ensure that the plot says'+
         ' %.2E, as this is hard-coded in!'%Decimal(m))
-    ax.text(0.05e16, 20, 'm = 1.5 x 10$^{-15}$ ppbv (molec cm$^{-2}$)$^{-1}$'+
-        '\nb = %.1f ppbv'%(b), color=color_non, fontsize=12)
-    plt.legend(frameon=False, loc=4, fontsize=12)
     ax.set_xlim([0,1.25e16])
     ax.set_ylim([0,26])
+    # Most and least polluted collocated NO2 from TROPOMI
+    tropomi_90 = aqs_other['TROPOMINO2'].values[np.where(
+        aqs_other['TROPOMINO2'].values > np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 90))].mean()
+    tropomi_10 = aqs_other['TROPOMINO2'].values[np.where(
+        aqs_other['TROPOMINO2'].values < np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 10))].mean()
+    # AQS NO2 at most and least polluted TROPOMI NO2 sites
+    aqs_90 = aqs_other['Sample Measurement'].values[np.where(
+        aqs_other['TROPOMINO2'].values > np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 90))].mean()
+    aqs_10 = aqs_other['Sample Measurement'].values[np.where(
+        aqs_other['TROPOMINO2'].values < np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 10))].mean()    
+    # # Indicate the the 90th percentile vs. 10th percentile AQS ratio divided 
+    # # by the 90th percentile vs. 10th percentile TROPOMI ratio
+    # ratio = (tropomi_90/tropomi_10)/(aqs_90/aqs_10)
+    ax.text(0.05e16, 20.5, 'm = 1.5 x 10$^{-15}$ ppbv (molec cm$^{-2}$)$^{-1}$'+
+        '\nb = %.1f'%b, color=color_non, fontsize=12)
+    # ax.text(0.05e16, 18.5, 'Ratio = %.1f'%(ratio), color=color_non, fontsize=12)
+    # Remove on-road stations: 
+    aqs_no2_raw = aqs_no2_raw.loc[~aqs_no2_raw['Site ID'].isin(onroad)]
+    # Select stations where TROPOMI values indicate very polluted (> 90th 
+    # percentile) conditions and not polluted (< 10th percentile)
+    tropomi_polluted = aqs_other.iloc[np.where(aqs_other['TROPOMINO2'].values > 
+        np.nanpercentile(aqs_other['TROPOMINO2'].values, 90))].index
+    tropomi_notpolluted = aqs_other.iloc[np.where(aqs_other['TROPOMINO2'].values < 
+        np.nanpercentile(aqs_other['TROPOMINO2'].values, 10))].index
+    aqs_no2_raw_polluted = aqs_no2_raw.loc[aqs_no2_raw['Site ID'].isin(
+        tropomi_polluted)]
+    aqs_no2_raw_notpolluted = aqs_no2_raw.loc[aqs_no2_raw['Site ID'].isin(
+        tropomi_notpolluted)]
+    aqs_no2_raw_polluted = aqs_no2_raw_polluted.groupby(['Time Local']).mean()
+    aqs_no2_raw_notpolluted = aqs_no2_raw_notpolluted.groupby(['Time Local']).mean()
+    aqs_no2_raw_mean = aqs_no2_raw.groupby(['Time Local']).mean()
+    ax2.plot(aqs_no2_raw_notpolluted['Sample Measurement'], '-', color='#0095A8',
+              label='Least polluted')
+    ax2.plot(aqs_no2_raw_polluted['Sample Measurement'], '-', color='#FF7043',
+              label='Most polluted')
+    # ax2.plot(aqs_no2_raw_mean['Sample Measurement'], '-k', label='Non-on-road')
+    ax2.legend(frameon=False, loc=1)
+    ax2.set_xlabel('Local time', fontsize=12)
+    ax2.set_ylabel('AQS NO$_{2}$ [ppbv]', fontsize=12)
+    for tick in ax2.get_xticklabels():
+        tick.set_rotation(45)
+    ax2.vlines(x='13:00', ymin=0, ymax=20, linestyle='--', color='darkgrey',
+        zorder=0)
+    ax2.set_xlim(['00:00','23:00'])
+    ax2.set_ylim([0,18])
+    # Include differences between 24-hour average and the 13:00 value for 
+    # all three curves
+    ratio = (aqs_no2_raw_polluted['Sample Measurement'].values.mean()/
+        aqs_no2_raw_polluted['Sample Measurement']['13:00'])
+    ax2.text('01:00', 8, '24-hour average/13:00 hours = %.1f'%(ratio), 
+        color='#FF7043', fontsize=12)
+    ratio = (aqs_no2_raw_notpolluted['Sample Measurement'].values.mean()/
+        aqs_no2_raw_notpolluted['Sample Measurement']['13:00'])
+    ax2.text('01:00', 2.5, '24-hour average/13:00 hours = %.1f'%(ratio), 
+        color='#0095A8', fontsize=12)
+    plt.subplots_adjust(hspace=0.35)
     plt.savefig(DIR_FIGS+'figS4.pdf', dpi=1000)
-    # # Most and least polluted collocated NO2 from TROPOMI
-    # tropomi_90 = aqs_other['TROPOMINO2'].values[np.where(
-    #     aqs_other['TROPOMINO2'].values > np.nanpercentile(
-    #     aqs_other['TROPOMINO2'].values, 90))].mean()
-    # tropomi_10 = aqs_other['TROPOMINO2'].values[np.where(
-    #     aqs_other['TROPOMINO2'].values < np.nanpercentile(
-    #     aqs_other['TROPOMINO2'].values, 10))].mean()
-    # # AQS NO2 at most and least polluted TROPOMI NO2 sites
-    # aqs_90 = aqs_other['Sample Measurement'].values[np.where(
-    #     aqs_other['TROPOMINO2'].values > np.nanpercentile(
-    #     aqs_other['TROPOMINO2'].values, 90))].mean()
-    # aqs_10 = aqs_other['Sample Measurement'].values[np.where(
-    #     aqs_other['TROPOMINO2'].values < np.nanpercentile(
-    #     aqs_other['TROPOMINO2'].values, 10))].mean()    
     return 
 
+# import numpy as np
+# import sys
+# sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
+# import tropomi_census_utils
+# import netCDF4 as nc
+# # 13 March - 13 June 2019 and 2020 average NO2
+# no2_pre_dg = nc.Dataset(DIR_TROPOMI+
+#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
+# no2_pre_dg = no2_pre_dg['NO2'][:]
+# no2_post_dg = nc.Dataset(DIR_TROPOMI+
+#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
+# no2_post_dg = no2_post_dg['NO2'][:].data
+# lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
+# lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
+# FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+#         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+#         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+#         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+#         '51', '53', '54', '55', '56']
+# harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
+# # Add vehicle ownership/road density data
+# harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
+# # Split into rural and urban tracts
+# harmonized_urban, harmonized_rural = \
+#     tropomi_census_utils.split_harmonized_byruralurban(harmonized)
 
-import sys
-sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
-import tropomi_census_utils
-import netCDF4 as nc
-# 13 March - 13 June 2019 and 2020 average NO2
-no2_pre_dg = nc.Dataset(DIR_TROPOMI+
-    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
-no2_pre_dg = no2_pre_dg['NO2'][:]
-no2_post_dg = nc.Dataset(DIR_TROPOMI+
-    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
-no2_post_dg = no2_post_dg['NO2'][:].data
-lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
-lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
-FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
-        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
-        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
-        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
-        '51', '53', '54', '55', '56']
-harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
-# Add vehicle ownership/road density data
-harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
-# Split into rural and urban tracts
-harmonized_urban, harmonized_rural = \
-    tropomi_census_utils.split_harmonized_byruralurban(harmonized)
+# # Calculate percentage of tracts without co-located TROPOMI retrievals 
+# print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
+#     harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
+# print('%.1f of urban tracts have NO2 retrievals'%(len(np.where(np.isnan(
+#     harmonized_urban['PRENO2'])==False)[0])/len(harmonized_urban)*100.))
+# print('%.1f of rural tracts have NO2 retrievals'%(len(np.where(np.isnan(
+#     harmonized_rural['PRENO2'])==False)[0])/len(harmonized_rural)*100.))
 
-# Calculate percentage of tracts without co-located TROPOMI retrievals 
-print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
-    harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
-print('%.1f of urban tracts have NO2 retrievals'%(len(np.where(np.isnan(
-    harmonized_urban['PRENO2'])==False)[0])/len(harmonized_urban)*100.))
-print('%.1f of rural tracts have NO2 retrievals'%(len(np.where(np.isnan(
-    harmonized_rural['PRENO2'])==False)[0])/len(harmonized_rural)*100.))
+# # Figures
+# fig1(harmonized)
+# fig2(harmonized, harmonized_rural, harmonized_urban)
+# fig3(harmonized_urban)
+# fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
+# figS1(harmonized, harmonized_rural)
+# figS2(harmonized, harmonized_rural, harmonized_urban)
+# figS3(harmonized_urban)
+# figS4()
 
-# Figures
-fig1(harmonized)
-fig2(harmonized, harmonized_rural, harmonized_urban)
-fig3(harmonized_urban)
-fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
-figS1(harmonized, harmonized_rural)
-figS2(harmonized, harmonized_rural, harmonized_urban)
-figS3(harmonized_urban)
-figS4()
+
+
+
+
+
+
+

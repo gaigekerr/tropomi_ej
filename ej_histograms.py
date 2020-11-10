@@ -2182,6 +2182,7 @@ def figS4():
     from decimal import Decimal
     from dask import dataframe as dd
     import pandas as pd
+    import matplotlib.pyplot as plt
     import sys
     sys.path.append('/Users/ghkerr/phd/utils/')
     from geo_idx import geo_idx
@@ -2353,54 +2354,210 @@ def figS4():
     plt.savefig(DIR_FIGS+'figS4.pdf', dpi=1000)
     return 
 
-# import numpy as np
-# import sys
-# sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
-# import tropomi_census_utils
-# import netCDF4 as nc
-# # 13 March - 13 June 2019 and 2020 average NO2
-# no2_pre_dg = nc.Dataset(DIR_TROPOMI+
-#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
-# no2_pre_dg = no2_pre_dg['NO2'][:]
-# no2_post_dg = nc.Dataset(DIR_TROPOMI+
-#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
-# no2_post_dg = no2_post_dg['NO2'][:].data
-# lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
-# lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
-# FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
-#         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
-#         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
-#         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
-#         '51', '53', '54', '55', '56']
-# harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
-# # Add vehicle ownership/road density data
-# harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
-# # Split into rural and urban tracts
-# harmonized_urban, harmonized_rural = \
-#     tropomi_census_utils.split_harmonized_byruralurban(harmonized)
+import numpy as np
+import sys
+sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
+import tropomi_census_utils
+import netCDF4 as nc
+# 13 March - 13 June 2019 and 2020 average NO2
+no2_pre_dg = nc.Dataset(DIR_TROPOMI+
+    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
+no2_pre_dg = no2_pre_dg['NO2'][:]
+no2_post_dg = nc.Dataset(DIR_TROPOMI+
+    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
+no2_post_dg = no2_post_dg['NO2'][:].data
+lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
+lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
+FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+        '51', '53', '54', '55', '56']
+harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
+# Add vehicle ownership/road density data
+harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
+# Split into rural and urban tracts
+harmonized_urban, harmonized_rural = \
+    tropomi_census_utils.split_harmonized_byruralurban(harmonized)
+# Calculate percentage of tracts without co-located TROPOMI retrievals 
+print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
+    harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
+print('%.1f of urban tracts have NO2 retrievals'%(len(np.where(np.isnan(
+    harmonized_urban['PRENO2'])==False)[0])/len(harmonized_urban)*100.))
+print('%.1f of rural tracts have NO2 retrievals'%(len(np.where(np.isnan(
+    harmonized_rural['PRENO2'])==False)[0])/len(harmonized_rural)*100.))
 
-# # Calculate percentage of tracts without co-located TROPOMI retrievals 
-# print('%.1f of all tracts have NO2 retrievals'%(len(np.where(np.isnan(
-#     harmonized['PRENO2'])==False)[0])/len(harmonized)*100.))
-# print('%.1f of urban tracts have NO2 retrievals'%(len(np.where(np.isnan(
-#     harmonized_urban['PRENO2'])==False)[0])/len(harmonized_urban)*100.))
-# print('%.1f of rural tracts have NO2 retrievals'%(len(np.where(np.isnan(
-#     harmonized_rural['PRENO2'])==False)[0])/len(harmonized_rural)*100.))
+# Figures
+fig1(harmonized)
+fig2(harmonized, harmonized_rural, harmonized_urban)
+fig3(harmonized_urban)
+fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
+figS1(harmonized, harmonized_rural)
+figS2(harmonized, harmonized_rural, harmonized_urban)
+figS3(harmonized_urban)
+figS4()
 
-# # Figures
-# fig1(harmonized)
-# fig2(harmonized, harmonized_rural, harmonized_urban)
-# fig3(harmonized_urban)
-# fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
-# figS1(harmonized, harmonized_rural)
-# figS2(harmonized, harmonized_rural, harmonized_urban)
-# figS3(harmonized_urban)
-# figS4()
-
-
-
-
-
-
-
+# Figure for Dan's paper
+import netCDF4 as nc
+import matplotlib.font_manager as fm
+font = fm.FontProperties(family = 'Palatino-Bold', 
+    fname = DIR_TYPEFACE+'Palatino-Bold.ttf', size=12)
+# 13 March - 13 June 2019 and 2020 average NO2
+no2_2019_dg = nc.Dataset(DIR_TROPOMI+
+    'Tropomi_NO2_griddedon0.01grid_2019_QA75.ncf')
+no2_2019_dg = no2_2019_dg['NO2'][:]
+lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
+lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
+def get_merged_csv(flist, **kwargs):
+    """Function reads CSV files in the list comprehension loop, this list of
+    DataFrames will be passed to the pd.concat() function which will return 
+    single concatenated DataFrame. Adapted from: 
+    https://stackoverflow.com/questions/35973782/reading-multiple-csv-
+    files-concatenate-list-of-file-names-them-into-a-singe-dat
+    """
+    from dask import dataframe as dd
+    return dd.concat([dd.read_csv(f, **kwargs) for f in flist])
+import time
+start_time = time.time()
+print('# # # # Loading AQS NO2 ...') 
+import numpy as np
+from decimal import Decimal
+from dask import dataframe as dd
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+import pandas as pd
+import sys
+sys.path.append('/Users/ghkerr/phd/utils/')
+from geo_idx import geo_idx
+PATH_AQS = '/Users/ghkerr/GW/data/aq/aqs/'
+years = [2019]
+date_start, date_end = '2019-01-01', '2019-12-31'
+dtype = {'State Code' : np.str,'County Code' : np.str,'Site Num' : np.str,
+    'Parameter Code' : np.str, 'POC' : np.str, 'Latitude' : np.float64,
+    'Longitude' : np.float64, 'Datum' : np.str, 'Parameter Name' : np.str,
+    'Date Local' : np.str, 'Time Local' : np.str, 'Date GMT' : np.str,
+    'Time GMT' : np.str, 'Sample Measurement' : np.float64, 
+    'Units of Measure' : np.str, 'MDL' : np.str, 'Uncertainty' : np.str,
+    'Qualifier' : np.str, 'Method Type' : np.str, 'Method Code' : np.str,
+    'Method Name' : np.str, 'State Name' : np.str, 
+    'County Name' : np.str, 'Date of Last Change' : np.str}
+filenames_no2 = []
+# Fetch file names for years of interest
+for year in years:
+    filenames_no2.append(PATH_AQS+'hourly_42602_%s.csv'%year)
+filenames_no2.sort()
+# Read multiple CSV files (yearly) into Pandas dataframe 
+aqs_no2_raw = get_merged_csv(filenames_no2, dtype=dtype, 
+    usecols=list(dtype.keys()))
+# Create site ID column 
+aqs_no2_raw['Site ID'] = aqs_no2_raw['State Code']+'-'+\
+    aqs_no2_raw['County Code']+'-'+aqs_no2_raw['Site Num']
+# Drop unneeded columns; drop latitude/longitude coordinates for 
+# temperature observations as the merging of the O3 and temperature 
+# DataFrames will supply these coordinates 
+to_drop = ['Parameter Code', 'POC', 'Datum', 'Parameter Name',
+    'Date GMT', 'Time GMT', 'Units of Measure', 'MDL', 'Uncertainty', 
+    'Qualifier', 'Method Type', 'Method Code', 'Method Name', 'State Name',
+    'County Name', 'Date of Last Change', 'State Code', 'County Code', 
+    'Site Num']
+aqs_no2_raw = aqs_no2_raw.drop(to_drop, axis=1)
+# Select months in measuring period     
+aqs_no2_raw = aqs_no2_raw.loc[dd.to_datetime(aqs_no2_raw['Date Local']).isin(
+    pd.date_range(date_start,date_end))]
+aqs_no2 = aqs_no2_raw.groupby(['Site ID']).mean()
+# Turns lazy Dask collection into its in-memory equivalent
+aqs_no2 = aqs_no2.compute()
+aqs_no2_raw = aqs_no2_raw.compute()
+# Loop through rows (stations) and find closest TROPOMI grid cell
+tropomi_no2_atstations = []
+for row in np.arange(0, len(aqs_no2), 1):
+    aqs_no2_station = aqs_no2.iloc[row]
+    lng_station = aqs_no2_station['Longitude']
+    lat_station = aqs_no2_station['Latitude']
+    lng_tropomi_near = geo_idx(lng_station, lng_dg)
+    lat_tropomi_near = geo_idx(lat_station, lat_dg)
+    if (lng_tropomi_near is None) or (lat_tropomi_near is None):
+        tropomi_no2_atstations.append(np.nan)
+    else:
+        tropomi_no2_station = no2_2019_dg[lat_tropomi_near,lng_tropomi_near]
+        tropomi_no2_atstations.append(tropomi_no2_station)
+aqs_no2['TROPOMINO2_2019'] = tropomi_no2_atstations
+# Site IDs for on-road monitoring sites 
+# from https://www3.epa.gov/ttnamti1/nearroad.html
+onroad = ['13-121-0056','13-089-0003','48-453-1068','06-029-2019',
+    '24-027-0006','24-005-0009','01-073-2059','16-001-0023','25-025-0044',
+    '25-017-0010','36-029-0023','37-119-0045','17-031-0218','17-031-0118',
+    '39-061-0048','39-035-0073','39-049-0038','48-113-1067','48-439-1053',
+    '08-031-0027','08-031-0028','19-153-6011','26-163-0093','26-163-0095',
+    '06-019-2016','09-003-0025','48-201-1066','48-201-1052','18-097-0087',
+    '12-031-0108','29-095-0042','32-003-1501','32-003-1502','06-059-0008',
+    '06-037-4008','21-111-0075','47-157-0100','12-011-0035','12-086-0035',
+    '55-079-0056','27-053-0962','27-037-0480','47-037-0040','22-071-0021',
+    '34-003-0010','36-081-0125','40-109-0097','12-095-0009','42-101-0075',
+    '42-101-0076','04-013-4019','04-013-4020','42-003-1376','41-067-0005',
+    '44-007-0030','37-183-0021','51-760-0025','06-071-0026','06-071-0027', 
+    '36-055-0015','06-067-0015','49-035-4002','48-029-1069','06-073-1017',
+    '06-001-0012','06-001-0013','06-001-0015','06-085-0006','72-061-0006',
+    '53-033-0030','53-053-0024','29-510-0094','29-189-0016','12-057-0113',
+    '12-057-1111','12-103-0027','51-059-0031','11-001-0051']
+# Dan's figures appear to have an aspect ratio of 2100 x 500
+from matplotlib.figure import figaspect
+w, h = figaspect(1500/2100)
+fig, ax = plt.subplots(figsize=(w,h))
+# Axis titles
+color_white = '#0095A8'
+color_non = '#FF7043'
+# Select mobile sites vs other AQS sites
+aqs_onroad = aqs_no2.loc[aqs_no2.index.isin(onroad)]
+aqs_other = aqs_no2.loc[~aqs_no2.index.isin(onroad)]
+# Plotting
+ax.plot(aqs_onroad['TROPOMINO2_2019'].values, 
+    aqs_onroad['Sample Measurement'].values, 'o', markersize=3, 
+    label='Near-road', color='lightgrey')
+ax.plot(aqs_other['TROPOMINO2_2019'].values, 
+    aqs_other['Sample Measurement'].values, 'ko', markersize=4, 
+    label='Not near-road')
+ax.set_xlabel('TROPOMI NO$_\mathregular{2}$/10$^\mathregular{16}$ '+
+    '[molec cm$^\mathregular{-2}$]', fontsize=14, fontproperties = font)
+ax.set_ylabel('AQS NO$_\mathregular{2}$ [ppbv]', fontsize=14, 
+    fontproperties=font)
+ax.set_xlim([0,1.25e16])
+ax.set_ylim([0,30])
+ax.set_xticks([0.0e16,0.2e16,0.4e16,0.6e16,0.8e16,1.0e16,1.2e16])
+ax.set_xticklabels(['0.0','0.2','0.4','0.6','0.8','1.0','1.2'], 
+    fontproperties=font)
+ax.set_yticks([0,5,10,15,20,25,30])
+ax.set_yticklabels(['0','5','10','15','20','25','30'], fontproperties=font)
+plt.setp(ax.get_xticklabels(), fontproperties=font, fontsize=14)
+plt.setp(ax.get_yticklabels(), fontproperties=font, fontsize=14)
+ax.xaxis.offsetText.set_visible(False)
+# Logarithmic regression (from https://stackoverflow.com/questions/
+# 49944018/fit-a-logarithmic-curve-to-data-points-and-extrapolate
+# -out-in-numpy/49944478)
+def logFit(x,y):
+    # cache some frequently reused terms
+    sumy = np.sum(y)
+    sumlogx = np.sum(np.log(x))
+    b = (x.size*np.sum(y*np.log(x)) - sumy*sumlogx)/(
+        x.size*np.sum(np.log(x)**2) - sumlogx**2)
+    a = (sumy - b*sumlogx)/x.size
+    return a,b
+def logFunc(x, a, b):
+    return a + b*np.log(x)
+# Force TROPOMI < 0.1e16 values to be AQS = 1 ppbv (just for the fit, not 
+# for the plot)
+aqs_other.loc[aqs_other['TROPOMINO2_2019']<1e15, 'Sample Measurement']=1.
+aqs_onroad.loc[aqs_onroad['TROPOMINO2_2019']<1e15, 'Sample Measurement']=1.
+mask = (~np.isnan(aqs_other['Sample Measurement'].values) & 
+    ~np.isnan(aqs_other['TROPOMINO2_2019'].values))
+coeff = logFit(np.sort(aqs_other['TROPOMINO2_2019'].values[mask]),
+    np.sort(aqs_other['Sample Measurement'].values[mask]))
+ax.plot(np.sort(aqs_other['TROPOMINO2_2019'].values[mask]), 
+    logFunc(np.sort(aqs_other['TROPOMINO2_2019'].values[mask]), 
+    *logFit(np.sort(aqs_other['TROPOMINO2_2019'].values[mask]),
+    np.sort(aqs_other['Sample Measurement'].values[mask]))), 
+    color='crimson', label='a = %.1f, b = %.1f'%(coeff[0],coeff[-1]))
+leg = ax.legend(fontsize=12, ncol=1, frameon=True, prop=font)
+plt.subplots_adjust(right=0.96, top=0.95, bottom=0.15)
+plt.savefig('/Users/ghkerr/Desktop/dan_figuresubplot.eps', dpi=1000)
 

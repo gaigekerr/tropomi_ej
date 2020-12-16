@@ -9,6 +9,8 @@ to a .csv file.
 Todo:
     Automate processing different states
 """
+import math 
+import numpy as np
 # DIR_NO2 = '/Users/ghkerr/GW/data/'
 # DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
 # DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
@@ -16,7 +18,7 @@ Todo:
 DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
 DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
 DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/tigerline/'
-DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/update/'
+DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
 
 def geo_idx(dd, dd_array):
     """Function searches for nearest decimal degree in an array of decimal 
@@ -115,6 +117,73 @@ def find_grid_in_bb(ingrid, lat, lng, left, right, down, up):
     lng = lng[left:right+1]
     return outgrid, lat, lng
 
+def harvesine(lon1, lat1, lon2, lat2):
+    """Distance calculation, degree to km (Haversine method)
+
+    Parameters
+    ----------
+    lon1 : float
+        Longitude of point A
+    lat1 : float
+        Latitude of point A
+    lon2 : float
+        Longitude of point B
+    lat2 : float
+        Latitude of point A
+
+    Returns
+    -------
+    d : float
+        Distance between points A and B, units of degrees
+    """
+    rad = math.pi / 180  # degree to radian
+    R = 6378.1  # earth average radius at equador (km)
+    dlon = (lon2 - lon1) * rad
+    dlat = (lat2 - lat1) * rad
+    a = (math.sin(dlat / 2)) ** 2 + math.cos(lat1 * rad) * \
+        math.cos(lat2 * rad) * (math.sin(dlon / 2)) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    d = R * c
+    return d
+
+def idwr(x, y, z, xi, yi):
+    """Inverse distance weighting for interpolating missing TROPOMI NO2 
+    column densities for census tracts that are too small to intersect with
+    the regridded NO2 fields.
+
+    Parameters
+    ----------
+    x : list
+        Longitude
+    y : list
+        Latitudes
+    z : list
+        NO2 column densities
+    xi : list
+        Unknown longitude
+    yi : TYPE
+        Unknown latitude
+
+    Returns
+    -------
+    lstxyzi : list
+        List comprised of unknown longitude, latitude, and interpolated 
+        TROPOMI column density for small census tract 
+    """
+    lstxyzi = []
+    for p in range(len(xi)):
+        lstdist = []
+        for s in range(len(x)):
+            d = (harvesine(x[s], y[s], xi[p], yi[p]))
+            lstdist.append(d)
+        sumsup = list((1 / np.power(lstdist, 2)))
+        suminf = np.sum(sumsup)
+        sumsup = np.sum(np.array(sumsup) * np.array(z))
+        u = sumsup / suminf
+        xyzi = [xi[p], yi[p], u]
+        lstxyzi.append(xyzi)
+    return lstxyzi
+
 def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     """For a particular state, function extracts census tracts and determines
     the pre- and post-COVID lockdown NO2 retrievals and demographic information
@@ -171,19 +240,8 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     # codebook for NHGIS data file). This part can be modified to extract
     # additional variables from NHGIS file
     var_extract = ['AJWBE001', # Total population
-        'AJWCE001', # Median age: Total
-        'AJWBE002', # Male
-        'AJWBE026', # Female
-        'AJWCE002', # Median age: Male
-        'AJWCE003', # Median age: Female
-
         'AJZAE001', # Median household income in the past 12 months (in 2018 
         # inflation-adjusted dollars)
-        'AJ0EE001', # Per capita income in the past 12 months (in 2018 
-        # inflation-adjusted dollars)
-        'AJZVE001', # Total
-        'AJZVE002', # With cash public assistance or Food Stamps/SNAP
-        'AJZVE003', # No cash public assistance or Food Stamps/SNAP
         'AJYPE001', # Total
         'AJYPE002', # No schooling completed
         'AJYPE003', # Nursery school
@@ -209,52 +267,75 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         'AJYPE023', # Master's degree
         'AJYPE024', # Professional school degree
         'AJYPE025', # Doctorate degree
-        # Note that not all insurance-related variables are needed for the 
-        # insurance as some further subdivide insurance holders into how many/
-        # the types of insurance they have
-        'AJ35E001', # Total
-        'AJ35E003', # Under 19 years: With one type of health insurance 
-        # coverage
-        'AJ35E010', # Under 19 years: With two or more types of health 
-        # insurance coverage
-        'AJ35E017', # Under 19 years: No health insurance coverage
-        'AJ35E019', # 19 to 34 years: With one type of health insurance     
-        # coverage
-        'AJ35E026', # 19 to 34 years: With two or more types of health 
-        # insurance coverage
-        'AJ35E033', # 19 to 34 years: No health insurance coverage
-        'AJ35E035', # 35 to 64 years: With one type of health insurance 
-        # coverage
-        'AJ35E042', # 35 to 64 years: With two or more types of health 
-        # insurance coverage
-        'AJ35E050', # 35 to 64 years: No health insurance coverage
-        'AJ35E052', # 65 years and over: With one type of health insurance 
-        # coverage
-        'AJ35E058', # 65 years and over: With two or more types of health 
-        # insurance coverage
-        'AJ35E066', # 65 years and over: No health insurance coverage
-        'AJWVE001', # Total
-        'AJWVE002', # Not Hispanic or Latino
-        'AJWVE003', # Not Hispanic or Latino: White alone
-        'AJWVE004', # Not Hispanic or Latino: Black or African American 
-        # alone
-        'AJWVE005', # Not Hispanic or Latino: American Indian and Alaska 
-        # Native alone
-        'AJWVE006', # Not Hispanic or Latino: Asian alone
-        'AJWVE007', # Not Hispanic or Latino: Native Hawaiian and Other 
-        # Pacific Islander alone
-        'AJWVE008', # Not Hispanic or Latino: Some other race alone
-        'AJWVE009', # Not Hispanic or Latino: Two or more races
-        'AJWVE012', # Hispanic or Latino
-        'AJWVE013', # Hispanic or Latino: White alone
-        'AJWVE014', # Hispanic or Latino: Black or African American alone
-        'AJWVE015', # Hispanic or Latino: American Indian and Alaska Native 
-        # alone
-        'AJWVE016', # Hispanic or Latino: Asian alone
-        'AJWVE017', # Hispanic or Latino: Native Hawaiian and Other Pacific 
-        # Islander alone
-        'AJWVE018', # Hispanic or Latino: Some other race alone
-        'AJWVE019' # Hispanic or Latino: Two or more races
+        'AJWNE001', # Total
+        'AJWNE002', # White alone
+        'AJWNE003', # Black or African American alone
+        'AJWNE004', # American Indian and Alaska Native alone
+        'AJWNE005', # Asian alone
+        'AJWNE006', # Native Hawaiian and Other Pacific Islander alone
+        'AJWNE007', # Some other race alone
+        'AJWNE008', # Two or more races
+        'AJWNE009', # Two or more races: Two races including Some other race
+        'AJWNE010', # Two or more races: Two races excluding S
+        'AJWWE001', # Total
+        'AJWWE002', # Not Hispanic or Latino
+        'AJWWE003' # Hispanic or Latino
+        # # Note that not all insurance-related variables are needed for the 
+        # # insurance as some further subdivide insurance holders into how many/
+        # # the types of insurance they have
+        # 'AJ35E001', # Total
+        # 'AJ35E003', # Under 19 years: With one type of health insurance 
+        # # coverage
+        # 'AJ35E010', # Under 19 years: With two or more types of health 
+        # # insurance coverage
+        # 'AJ35E017', # Under 19 years: No health insurance coverage
+        # 'AJ35E019', # 19 to 34 years: With one type of health insurance     
+        # # coverage
+        # 'AJ35E026', # 19 to 34 years: With two or more types of health 
+        # # insurance coverage
+        # 'AJ35E033', # 19 to 34 years: No health insurance coverage
+        # 'AJ35E035', # 35 to 64 years: With one type of health insurance 
+        # # coverage
+        # 'AJ35E042', # 35 to 64 years: With two or more types of health 
+        # # insurance coverage
+        # 'AJ35E050', # 35 to 64 years: No health insurance coverage
+        # 'AJ35E052', # 65 years and over: With one type of health insurance 
+        # # coverage
+        # 'AJ35E058', # 65 years and over: With two or more types of health 
+        # # insurance coverage
+        # 'AJ35E066', # 65 years and over: No health insurance coverage
+        # 'AJWVE001', # Total
+        # 'AJWVE002', # Not Hispanic or Latino
+        # 'AJWVE003', # Not Hispanic or Latino: White alone
+        # 'AJWVE004', # Not Hispanic or Latino: Black or African American 
+        # # alone
+        # 'AJWVE005', # Not Hispanic or Latino: American Indian and Alaska 
+        # # Native alone
+        # 'AJWVE006', # Not Hispanic or Latino: Asian alone
+        # 'AJWVE007', # Not Hispanic or Latino: Native Hawaiian and Other 
+        # # Pacific Islander alone
+        # 'AJWVE008', # Not Hispanic or Latino: Some other race alone
+        # 'AJWVE009', # Not Hispanic or Latino: Two or more races
+        # 'AJWVE012', # Hispanic or Latino
+        # 'AJWVE013', # Hispanic or Latino: White alone
+        # 'AJWVE014', # Hispanic or Latino: Black or African American alone
+        # 'AJWVE015', # Hispanic or Latino: American Indian and Alaska Native 
+        # # alone
+        # 'AJWVE016', # Hispanic or Latino: Asian alone
+        # 'AJWVE017', # Hispanic or Latino: Native Hawaiian and Other Pacific 
+        # # Islander alone
+        # 'AJWVE018', # Hispanic or Latino: Some other race alone
+        # 'AJWVE019' # Hispanic or Latino: Two or more races
+        # 'AJWCE001', # Median age: Total
+        # 'AJWBE002', # Male
+        # 'AJWBE026', # Female
+        # 'AJWCE002', # Median age: Male
+        # 'AJWCE003', # Median age: Female        
+        # 'AJ0EE001', # Per capita income in the past 12 months (in 2018 
+        # # inflation-adjusted dollars)
+        # 'AJZVE001', # Total
+        # 'AJZVE002', # With cash public assistance or Food Stamps/SNAP
+        # 'AJZVE003', # No cash public assistance or Food Stamps/SNAP        
         ]
     print('# # # # # NHGIS census tract-level information read! # # # # #')
     
@@ -449,13 +530,58 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
         # If there are no TROPOMI grid cells within census tract, fill row 
         # corresponding to tract with NaNs for all variables
         if (len(i_inside)==0) or (len(j_inside)==0):
-            dicttemp = {'GEOID':geoid, 'PRENO2':np.nan, 'POSTNO2':np.nan,
-                'PRENO2APR':np.nan, 'POSTNO2APR':np.nan, 'ALLNO2':np.nan
-                }
+            # # # # Option 1: Treat small tracts as missing data/NaN for NO2
+            # dicttemp = {'GEOID':geoid, 'PRENO2':np.nan, 'POSTNO2':np.nan, 
+            #     'PRENO2APR':np.nan, 'POSTNO2APR':np.nan, 
+            #     'PRENO2MAR-SEP':np.nan, 'POSTNO2MAR-SEP':np.nan, 
+            #     'ALLNO2':np.nan}
+            # for var in var_extract:
+            #     dicttemp[var] = tract_nhgis[var].values[0]        
+            # df.append(dicttemp)   
+            # del dicttemp
+            # # # # Option 2: Interpolate using inverse distance weighting 
+            # https://rafatieppo.github.io/post/2018_07_27_idw2pyr/
+            tract_latcentroid = tract.centroid.y
+            tract_lngcentroid = tract.centroid.x           
+            idx_latnear = geo_idx(tract_latcentroid, lat)
+            idx_lngnear = geo_idx(tract_lngcentroid, lng)
+            # Indices for 8 nearby points
+            lng_idx = [idx_lngnear-1, idx_lngnear, idx_lngnear+1, 
+                idx_lngnear-1, idx_lngnear+1, idx_lngnear-1, idx_lngnear, 
+                idx_lngnear+1]
+            lat_idx = [idx_latnear+1, idx_latnear+1, idx_latnear+1, 
+                idx_latnear, idx_latnear, idx_latnear-1, idx_latnear-1, 
+                idx_latnear-1]
+            # Known coordinates
+            x = lng[lng_idx].data
+            y = lat[lat_idx].data
+            # Known NO2 values 
+            z_preNO2 = preNO2[lat_idx,lng_idx].data.flatten()
+            z_postNO2 = postNO2[lat_idx,lng_idx]
+            z_preNO2apr = preNO2apr[lat_idx,lng_idx]
+            z_postNO2apr = postNO2apr[lat_idx,lng_idx]
+            z_preNO2marsep = preNO2marsep[lat_idx,lng_idx]
+            z_postNO2marsep = postNO2marsep[lat_idx,lng_idx]
+            z_allNO2 = allNO2[lat_idx,lng_idx]
+            dicttemp = {'GEOID':geoid, 
+                'PRENO2':idwr(x,y,z_preNO2,[tract_lngcentroid],
+                              [tract_latcentroid])[0][-1],
+                'POSTNO2':idwr(x,y,z_postNO2,[tract_lngcentroid],
+                              [tract_latcentroid])[0][-1], 
+                'PRENO2APR':idwr(x,y,z_preNO2apr,[tract_lngcentroid],
+                              [tract_latcentroid])[0][-1], 
+                'POSTNO2APR':idwr(x,y,z_postNO2apr,[tract_lngcentroid],
+                              [tract_latcentroid])[0][-1], 
+                'PRENO2MAR-SEP':idwr(x,y,z_preNO2marsep,[tract_lngcentroid],
+                              [tract_latcentroid])[0][-1], 
+                'POSTNO2MAR-SEP':idwr(x,y,z_postNO2marsep,[tract_lngcentroid],
+                              [tract_latcentroid])[0][-1], 
+                'ALLNO2':idwr(x,y,z_allNO2,[tract_lngcentroid],
+                              [tract_latcentroid])[0][-1]}
             for var in var_extract:
                 dicttemp[var] = tract_nhgis[var].values[0]        
             df.append(dicttemp)   
-            del dicttemp
+            del dicttemp   
         # For census tracts with TROPOMI grid cells, find grid cell-averaged
         # NO2 and demographic information from NHGIS census files
         else: 
@@ -486,7 +612,8 @@ def harmonize_tropomino2_census(sFIPS, censusfile, checkplot=False):
     # Save DataFrame
     #----------------------
     df = df.replace('NaN', '', regex=True)
-    df.to_csv(DIR_OUT+'Tropomi_NO2__updated-v2_%s_%s'%(sFIPS,censusfile), sep = ',')
+    df.to_csv(DIR_OUT+'Tropomi_NO2_interpolated_%s_%s'%(sFIPS,censusfile), 
+        sep = ',')
     print('# # # # # Output file written! # # # # #')  
     
     # If desired, maps of all variables will be plotted 

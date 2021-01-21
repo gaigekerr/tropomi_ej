@@ -523,7 +523,7 @@ def fig1(harmonized, harmonized_urban):
         loc='left', fontsize=10)
     ax3.set_title('(c) $\mathregular{\Delta}$ NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', 
         loc='left', fontsize=10)
-    ax5.set_title('(e) Household income [$]', loc='left', fontsize=10)
+    ax5.set_title('(e) Median household income [$]', loc='left', fontsize=10)
     ax7.set_title('(g) Racial background [%]', loc='left', fontsize=10)
     ax4.set_title('(d) Ethnic background [%]', loc='left', fontsize=10)
     ax6.set_title('(f) Educational attainment [%]',loc='left', fontsize=10)
@@ -1291,7 +1291,7 @@ def fig2(harmonized, harmonized_rural, harmonized_urban):
     ax3.grid(axis='x', zorder=0, color='darkgrey')
     ax3.invert_yaxis()
     ax1.set_title('(a) Racial background', loc='left', fontsize=10)
-    ax2.set_title('(b) Household income', loc='left', fontsize=10)
+    ax2.set_title('(b) Median household income', loc='left', fontsize=10)
     ax3.set_title('(c) Educational attainment', loc='left', fontsize=10)
     plt.subplots_adjust(wspace=0.05, left=0.09, top=0.95, bottom=0.17, 
         right=0.98)
@@ -1733,12 +1733,14 @@ def fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg):
     ax8.set_title('(h)', loc='left')
     ax9.set_title('(i)', loc='left')
     # Add axis labels
-    ax1.text(-0.1, 0.5, '$\mathregular{\delta}$($\mathregular{\delta}$ NO$_{2}$)/10$'+
-        '^\mathregular{15}$ [molec cm$^{\mathregular{-2}}$]', 
-        ha='center', rotation='vertical', rotation_mode='anchor',
-        transform=ax1.transAxes, fontsize=12)
-    ax4.text(-0.1, 0.5, 'Income [$]', ha='center', rotation='vertical', 
-        rotation_mode='anchor', transform=ax4.transAxes, fontsize=12)
+    titstr = '($\mathregular{\delta}$NO$_{2\mathregular{, local}}$ - '+\
+        '$\mathregular{\delta}$NO$_{2\mathregular{, city\:average}}$)'+\
+        '/10$^{\mathregular{15}}$\n[molec cm$^{\mathregular{-2}}$]'
+    ax1.text(-0.1, 0.5, titstr, ha='center', rotation='vertical', 
+        rotation_mode='anchor', transform=ax1.transAxes, fontsize=12)
+    ax4.text(-0.1, 0.5, 'Median household income [$]', ha='center', 
+        rotation='vertical', rotation_mode='anchor', transform=ax4.transAxes, 
+        fontsize=12)
     ax7.text(-0.1, 0.5, 'White [%]', ha='center', rotation='vertical', 
         rotation_mode='anchor', transform=ax7.transAxes, fontsize=12)
     for ax in axes: 
@@ -2192,8 +2194,8 @@ def figS1(harmonized, harmonized_rural):
         loc='left', fontsize=10)
     ax2.set_title('(b) Ethnic background [%]', loc='left', fontsize=10)
     ax2b.set_title('(h) Ethnic background [%]', loc='left', fontsize=10)
-    ax3.set_title('(c) Household income [$]', loc='left', fontsize=10)
-    ax3b.set_title('(i) Household income [$]', loc='left', fontsize=10)
+    ax3.set_title('(c) Median household income [$]', loc='left', fontsize=10)
+    ax3b.set_title('(i) Median household income [$]', loc='left', fontsize=10)
     ax4.set_title('(d) Educational attainment [%]',loc='left', fontsize=10)
     ax4b.set_title('(j) Educational attainment [%]',loc='left', fontsize=10)
     ax5.set_title('(e) Racial background [%]', loc='left', fontsize=10)
@@ -2612,7 +2614,7 @@ def figS2(harmonized, harmonized_urban, harmonized_rural):
         ax3.spines[side].set_visible(False)
     ax3.grid(axis='x', zorder=0, color='darkgrey')
     ax1.set_title('(a) Racial background', loc='left', fontsize=10)
-    ax2.set_title('(b) Household income', loc='left', fontsize=10)
+    ax2.set_title('(b) Median household income', loc='left', fontsize=10)
     ax3.set_title('(c) Educational attainment', loc='left', fontsize=10)
     plt.subplots_adjust(wspace=0.15, left=0.09, top=0.95, bottom=0.17, 
         right=0.98)
@@ -2800,9 +2802,9 @@ def figS3(harmonized, harmonized_rural, harmonized_urban):
     ax13.set_title('(i)', loc='left', fontsize=12)
     ax14.set_title('(l)', loc='left', fontsize=12)
     ax15.set_title('(o)', loc='left', fontsize=12)
-    ax1.set_ylabel('Income', fontsize=12)
-    ax2.set_ylabel('Racial background', fontsize=12)
-    ax3.set_ylabel('Ethnic background', fontsize=12)
+    ax1.set_ylabel('Median household\nincome', fontsize=12)
+    ax2.set_ylabel('Racial\nbackground', fontsize=12)
+    ax3.set_ylabel('Ethnic\nbackground', fontsize=12)
     ax4.set_ylabel('Educational\nattainment', fontsize=12)
     ax5.set_ylabel('Vehicle\nownership', fontsize=12)
     # Axes ticks        
@@ -3162,7 +3164,7 @@ def figS5(harmonized_urban):
         ax.set_xticks([2,6])
         ax.set_ylim([0.1e16,1.2e16])
     # Labels 
-    ax1.set_title('(a) Household income', loc='left', fontsize=10)
+    ax1.set_title('(a) Median household income', loc='left', fontsize=10)
     ax2.set_title('(b) Racial background', loc='left', fontsize=10)
     ax3.set_title('(c) Ethnic background', loc='left', fontsize=10)
     ax4.set_title('(d) Educational attainment',loc='left', fontsize=10)
@@ -3316,43 +3318,43 @@ def figS6(harmonized):
     plt.show()
     return 
     
-# import numpy as np
-# import sys
-# sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
-# import tropomi_census_utils
-# import netCDF4 as nc
-# # 13 March - 13 June 2019 and 2020 average NO2
-# no2_pre_dg = nc.Dataset(DIR_TROPOMI+
-#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
-# no2_pre_dg = no2_pre_dg['NO2'][:]
-# no2_post_dg = nc.Dataset(DIR_TROPOMI+
-#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
-# no2_post_dg = no2_post_dg['NO2'][:].data
-# lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
-# lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
-# FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
-#         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
-#         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
-#         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
-#         '51', '53', '54', '55', '56']
-# harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
-# # # Add vehicle ownership/road density data
-# harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
-# # Split into rural and urban tracts
-# harmonized_urban, harmonized_rural = \
-#     tropomi_census_utils.split_harmonized_byruralurban(harmonized)
+import numpy as np
+import sys
+sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
+import tropomi_census_utils
+import netCDF4 as nc
+# 13 March - 13 June 2019 and 2020 average NO2
+no2_pre_dg = nc.Dataset(DIR_TROPOMI+
+    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
+no2_pre_dg = no2_pre_dg['NO2'][:]
+no2_post_dg = nc.Dataset(DIR_TROPOMI+
+    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
+no2_post_dg = no2_post_dg['NO2'][:].data
+lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
+lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
+FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+        '51', '53', '54', '55', '56']
+harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
+# # Add vehicle ownership/road density data
+harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
+# Split into rural and urban tracts
+harmonized_urban, harmonized_rural = \
+    tropomi_census_utils.split_harmonized_byruralurban(harmonized)
 
 # Figures
-# fig1(harmonized, harmonized_urban)
-# fig2(harmonized, harmonized_rural, harmonized_urban)
-# fig3(harmonized_urban)
-# fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
-# figS1(harmonized, harmonized_rural)
-# figS2(harmonized, harmonized_urban, harmonized_rural)
-# figS3(harmonized, harmonized_rural, harmonized_urban)
-# figS4()
-# figS5(harmonized_urban)
-# figS6(harmonized)
+fig1(harmonized, harmonized_urban)
+fig2(harmonized, harmonized_rural, harmonized_urban)
+fig3(harmonized_urban)
+fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
+figS1(harmonized, harmonized_rural)
+figS2(harmonized, harmonized_urban, harmonized_rural)
+figS3(harmonized, harmonized_rural, harmonized_urban)
+figS4()
+figS5(harmonized_urban)
+figS6(harmonized)
 
 # # Figure for Dan's paper
 # import netCDF4 as nc

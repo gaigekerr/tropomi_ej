@@ -5,14 +5,16 @@ primary and secondary roads. The fraction of households in each tract without
 vehicles and the method of transportation to work are also recorded in output 
 file"""
 
-DIR_NO2 = '/Users/ghkerr/GW/data/'
-DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
-DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
-DIR_OUT = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+# DIR_NO2 = '/Users/ghkerr/GW/data/'
+# DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+# DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
+# DIR_OUT = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+# DIR_GEO = '/Users/ghkerr/GW/data/geography/'
 DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
 DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
 DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
 DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
+DIR_GEO = '/mnt/scratch1/gaige/data/tropomi_ej/'
 
 def harmonized_vehicleownership_roaddensity(FIPS):
     """function loads primary U.S. road geography and census tract geography 
@@ -84,11 +86,11 @@ def harmonized_vehicleownership_roaddensity(FIPS):
     vehicleown.loc[vehicleown['AJXCE001'] == 0.] = np.nan    
     print('Census data read!')
     
-    # # # Open state primary/secondary road shapefiles and records
+    # # # # Open state primary/secondary road shapefiles and records
     roads_primary, roads_secondary = [], []
     for FIPS_i in FIPS:
         shp = shapereader.Reader(DIR_SHAPEFILE+'roads/'+
-            'tl_2019_%s_prisecroads/tl_2019_%s_prisecroads'%(FIPS_i,FIPS_i))
+            'tl_2019_%s_prisecroads/tl_2019_%s_prisecroads.shp'%(FIPS_i,FIPS_i))
         roads = list(shp.geometries())
         roads_records = list(shp.records())   
         # Segregate primary versus secondary roads. Primary roads have 
@@ -249,12 +251,168 @@ def harmonized_vehicleownership_roaddensity(FIPS):
         DIR_OUT+'vehicleownership_roaddensity_us.csv', sep = ',')    
     return 
 
+def harmonized_noxsource(FIPS):
+    """Find number of NOx sources from airports, ports, rail, and CEMS 
+    facilities within 1 and 10 km of each census tract's centroid.
+    """
+    import numpy as np
+    import pandas as pd
+    from cartopy.io import shapereader
+    # Constants
+    R = 6373.0
+    searchrad = 0.5
+
+    geoids = []
+    ports10, ports1, cems10, cems1 = [], [], [], []
+    airports10, airports1, rail10, rail1 = [], [], [], []
+    # Port locations (downloaded from https://geonode.wfp.org/layers/
+    # esri_gn:geonode:wld_trs_ports_wfp. Click on "Download Layer" and then 
+    # "Data" -> "CSV") 
+    ports = pd.read_csv(DIR_CENSUS+'wld_trs_ports_wfp.csv', sep=',',
+        engine='python')
+    ports = ports[ports['country']=='United States of America']
+    ports = pd.DataFrame({'Lat':ports['latitude'],
+        'Lng':ports['longitude']})
+    
+    # CEMS locations (from https://ampd.epa.gov/ampd/ for 2019)
+    cems = pd.read_csv(DIR_CENSUS+'emission_01-26-2021_091613662.csv', sep=',',
+        engine='python')
+    # Average over multiple stacks
+    cems = cems.groupby(by=' Facility Name').mean()
+    cems = pd.DataFrame({'Lat':cems[' Facility Latitude'],
+        'Lng':cems[' Facility Longitude']})
+    
+    # Airport locations (https://data.humdata.org/dataset/ourairports-usa and
+    # click on "List of airports in United States of America...")
+    airport = pd.read_csv(DIR_CENSUS+'us-airports.csv', sep=',', 
+        engine='python')
+    # From visual inspection of the lat/lon of airports and the number of 
+    # entries, it appears that this dataset includes every dirt landing strip 
+    # in bumfuck nowhere. Select only airports with scheuled service
+    airport = airport.loc[airport['scheduled_service']==1]
+    airport = pd.DataFrame({'Lat':airport['latitude_deg'],
+        'Lng':airport['longitude_deg']})
+    
+    # Railroads (https://catalog.data.gov/dataset/
+    # tiger-line-shapefile-2019-nation-u-s-rails-national-shapefile)
+    rail = shapereader.Reader(DIR_GEO+
+        'tigerline/tl_2019_us_rails/tl_2019_us_rails.shp')
+    rail_records = list(rail.records())   
+    rail = list(rail.geometries())
+    rail_lat, rail_lng = [], []
+    for r in rail: 
+        rail_lat.append(r.centroid.xy[1][0])
+        rail_lng.append(r.centroid.xy[0][0])
+    rail = pd.DataFrame({'Lat':rail_lat, 'Lng':rail_lng})
+    for FIPS_i in FIPS: 
+        print(FIPS_i)
+        # Tigerline shapefile for state
+        shp = shapereader.Reader(DIR_SHAPEFILE+'tl_2019_%s_tract/'%FIPS_i+    
+            'tl_2019_%s_tract.shp'%FIPS_i)
+        tracts_records = list(shp.records())
+        # Loop through tracts and find current latitude and longitude of the
+        # internal point of tract
+        for t in tracts_records:
+            geoid = t.attributes['GEOID']
+            tract_intptlat = float(t.attributes['INTPTLAT'])
+            tract_intptlon = float(t.attributes['INTPTLON'])
+            # Slice primary and secondary roads ~near tract center
+            tract_ports = ports.loc[(ports['Lat']>tract_intptlat-searchrad) &
+                (ports['Lat']<tract_intptlat+searchrad) & 
+                (ports['Lng']>tract_intptlon-searchrad) &
+                (ports['Lng']<tract_intptlon+searchrad)]
+            tract_cems = cems.loc[(cems['Lat']>tract_intptlat-searchrad) &
+                (cems['Lat']<tract_intptlat+searchrad) & 
+                (cems['Lng']>tract_intptlon-searchrad) &
+                (cems['Lng']<tract_intptlon+searchrad)]
+            tract_airports = airport.loc[(airport['Lat']>tract_intptlat-searchrad) &
+                (airport['Lat']<tract_intptlat+searchrad) & 
+                (airport['Lng']>tract_intptlon-searchrad) &
+                (airport['Lng']<tract_intptlon+searchrad)]
+            tract_rail = rail.loc[(rail['Lat']>tract_intptlat-searchrad) &
+                (rail['Lat']<tract_intptlat+searchrad) & 
+                (rail['Lng']>tract_intptlon-searchrad) &
+                (rail['Lng']<tract_intptlon+searchrad)]        
+            # Loop through ports within search radius and calculate haversine 
+            # distance
+            dists_ports = [] 
+            for r in np.arange(0,len(tract_ports),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_ports.iloc[r]['Lng'],
+                    tract_ports.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * 
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_ports.append(R * c)
+            # Loop through CEMS
+            dists_cems = [] 
+            for r in np.arange(0,len(tract_cems),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_cems.iloc[r]['Lng'],
+                    tract_cems.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * 
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_cems.append(R * c)                
+            # Loop through airports
+            dists_airports = []
+            for r in np.arange(0,len(tract_airports),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_airports.iloc[r]['Lng'],
+                    tract_airports.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * 
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_airports.append(R * c)          
+            # Loop through railroads
+            dists_rail = []
+            for r in np.arange(0,len(tract_rail),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_rail.iloc[r]['Lng'],
+                    tract_rail.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * 
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_rail.append(R * c)          
+            # Append information 
+            geoids.append(geoid)
+            ports10.append(np.where(np.array(dists_ports)<10)[0].shape[0])
+            ports1.append(np.where(np.array(dists_ports)<1)[0].shape[0])
+            cems10.append(np.where(np.array(dists_cems)<10)[0].shape[0])
+            cems1.append(np.where(np.array(dists_cems)<1)[0].shape[0])
+            airports10.append(np.where(np.array(dists_airports)<10)[0].shape[0])
+            airports1.append(np.where(np.array(dists_airports)<1)[0].shape[0])
+            rail10.append(np.where(np.array(dists_rail)<10)[0].shape[0])
+            rail1.append(np.where(np.array(dists_rail)<1)[0].shape[0])
+    # Create output DataFrame
+    density = pd.DataFrame({'GEOID':geoids, 
+        'portswithin10':ports10, 'portswithin1':ports1,
+        'CEMSwithin10':cems10, 'CEMSwithin1':cems1,
+        'airportswithin10':airports10, 'airportswithin1':airports1,
+        'railwithin10':rail10, 'railwithin1':rail1})
+    density = density.set_index('GEOID')
+    density.index = density.index.map(str)
+    density = density.replace('NaN', '', regex=True)
+    density.to_csv(DIR_OUT+'noxsourcedensity_us.csv', sep = ',')    
+    return 
+
 FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
         '51', '53', '54', '55', '56']
-harmonized_vehicleownership_roaddensity(FIPS)
-
-
+# harmonized_vehicleownership_roaddensity(FIPS)
+harmonized_noxsource(FIPS)
 

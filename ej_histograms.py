@@ -1750,7 +1750,529 @@ def fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg):
     plt.savefig(DIR_FIGS+'fig4_revised.pdf', dpi=1000)
     return
 
-def figS1(harmonized, harmonized_rural):
+def figS1():
+    """
+    """
+    def get_merged_csv(flist, **kwargs):
+        """Function reads CSV files in the list comprehension loop, this list of
+        DataFrames will be passed to the pd.concat() function which will return 
+        single concatenated DataFrame. Adapted from: 
+        https://stackoverflow.com/questions/35973782/reading-multiple-csv-
+        files-concatenate-list-of-file-names-them-into-a-singe-dat
+        """
+        from dask import dataframe as dd
+        return dd.concat([dd.read_csv(f, **kwargs) for f in flist])
+    import time
+    start_time = time.time()
+    print('# # # # Loading AQS NO2 ...') 
+    import numpy as np
+    from decimal import Decimal
+    from dask import dataframe as dd
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import sys
+    sys.path.append('/Users/ghkerr/phd/utils/')
+    from geo_idx import geo_idx
+    PATH_AQS = '/Users/ghkerr/GW/data/aq/aqs/'
+    years = [2019]
+    date_start, date_end = '2019-03-13', '2019-06-13'
+    dtype = {'State Code' : np.str,'County Code' : np.str,'Site Num' : np.str,
+        'Parameter Code' : np.str, 'POC' : np.str, 'Latitude' : np.float64,
+        'Longitude' : np.float64, 'Datum' : np.str, 'Parameter Name' : np.str,
+        'Date Local' : np.str, 'Time Local' : np.str, 'Date GMT' : np.str,
+        'Time GMT' : np.str, 'Sample Measurement' : np.float64, 
+        'Units of Measure' : np.str, 'MDL' : np.str, 'Uncertainty' : np.str,
+        'Qualifier' : np.str, 'Method Type' : np.str, 'Method Code' : np.str,
+        'Method Name' : np.str, 'State Name' : np.str, 
+        'County Name' : np.str, 'Date of Last Change' : np.str}
+    filenames_no2 = []
+    # Fetch file names for years of interest
+    for year in years:
+        filenames_no2.append(PATH_AQS+'hourly_42602_%s.csv'%year)
+    filenames_no2.sort()
+    # Read multiple CSV files (yearly) into Pandas dataframe 
+    aqs_no2_raw = get_merged_csv(filenames_no2, dtype=dtype, 
+        usecols=list(dtype.keys()))
+    # Create site ID column 
+    aqs_no2_raw['Site ID'] = aqs_no2_raw['State Code']+'-'+\
+        aqs_no2_raw['County Code']+'-'+aqs_no2_raw['Site Num']
+    # Drop unneeded columns; drop latitude/longitude coordinates for 
+    # temperature observations as the merging of the O3 and temperature 
+    # DataFrames will supply these coordinates 
+    to_drop = ['Parameter Code', 'POC', 'Datum', 'Parameter Name',
+        'Date GMT', 'Time GMT', 'Units of Measure', 'MDL', 'Uncertainty', 
+        'Qualifier', 'Method Type', 'Method Code', 'Method Name', 'State Name',
+        'County Name', 'Date of Last Change', 'State Code', 'County Code', 
+        'Site Num']
+    aqs_no2_raw = aqs_no2_raw.drop(to_drop, axis=1)
+    # Select months in measuring period     
+    aqs_no2_raw = aqs_no2_raw.loc[dd.to_datetime(aqs_no2_raw['Date Local']).isin(
+        pd.date_range(date_start,date_end))]
+    aqs_no2 = aqs_no2_raw.groupby(['Site ID']).mean()
+    # Turns lazy Dask collection into its in-memory equivalent
+    aqs_no2 = aqs_no2.compute()
+    aqs_no2_raw = aqs_no2_raw.compute()
+    # Loop through rows (stations) and find closest TROPOMI grid cell
+    tropomi_no2_atstations = []
+    for row in np.arange(0, len(aqs_no2), 1):
+        aqs_no2_station = aqs_no2.iloc[row]
+        lng_station = aqs_no2_station['Longitude']
+        lat_station = aqs_no2_station['Latitude']
+        lng_tropomi_near = geo_idx(lng_station, lng_dg)
+        lat_tropomi_near = geo_idx(lat_station, lat_dg)
+        if (lng_tropomi_near is None) or (lat_tropomi_near is None):
+            tropomi_no2_atstations.append(np.nan)
+        else:
+            tropomi_no2_station = no2_pre_dg[lat_tropomi_near,lng_tropomi_near]
+            tropomi_no2_atstations.append(tropomi_no2_station)
+    aqs_no2['TROPOMINO2'] = tropomi_no2_atstations
+    # Site IDs for on-road monitoring sites 
+    # from https://www3.epa.gov/ttnamti1/nearroad.html
+    onroad = ['13-121-0056','13-089-0003','48-453-1068','06-029-2019',
+        '24-027-0006','24-005-0009','01-073-2059','16-001-0023','25-025-0044',
+        '25-017-0010','36-029-0023','37-119-0045','17-031-0218','17-031-0118',
+        '39-061-0048','39-035-0073','39-049-0038','48-113-1067','48-439-1053',
+        '08-031-0027','08-031-0028','19-153-6011','26-163-0093','26-163-0095',
+        '06-019-2016','09-003-0025','48-201-1066','48-201-1052','18-097-0087',
+        '12-031-0108','29-095-0042','32-003-1501','32-003-1502','06-059-0008',
+        '06-037-4008','21-111-0075','47-157-0100','12-011-0035','12-086-0035',
+        '55-079-0056','27-053-0962','27-037-0480','47-037-0040','22-071-0021',
+        '34-003-0010','36-081-0125','40-109-0097','12-095-0009','42-101-0075',
+        '42-101-0076','04-013-4019','04-013-4020','42-003-1376','41-067-0005',
+        '44-007-0030','37-183-0021','51-760-0025','06-071-0026','06-071-0027', 
+        '36-055-0015','06-067-0015','49-035-4002','48-029-1069','06-073-1017',
+        '06-001-0012','06-001-0013','06-001-0015','06-085-0006','72-061-0006',
+        '53-033-0030','53-053-0024','29-510-0094','29-189-0016','12-057-0113',
+        '12-057-1111','12-103-0027','51-059-0031','11-001-0051']
+    fig = plt.figure(figsize=(7,9))
+    ax = plt.subplot2grid((2,1),(0,0))
+    ax2 = plt.subplot2grid((2,1),(1,0))
+    # Axis titles
+    ax.set_title('(a)', loc='left', fontsize=12)
+    ax2.set_title('(b)', loc='left', fontsize=12)
+    color_white = '#0095A8'
+    color_non = '#FF7043'
+    # Select mobile sites vs other AQS sites
+    aqs_onroad = aqs_no2.loc[aqs_no2.index.isin(onroad)]
+    aqs_other = aqs_no2.loc[~aqs_no2.index.isin(onroad)]
+    # Plotting
+    ax.plot(aqs_onroad['TROPOMINO2'].values, 
+        aqs_onroad['Sample Measurement'].values, 'o', markersize=3, 
+        label='Near-road', color='darkgrey')
+    ax.plot(aqs_other['TROPOMINO2'].values, 
+        aqs_other['Sample Measurement'].values, 'ko', markersize=4, 
+        label='Not near-road')
+    ax.set_xlabel('TROPOMI NO$_{2}$/10$^{16}$ [molec cm$^{-2}$]', fontsize=12)
+    ax.set_ylabel('AQS NO$_{2}$ [ppbv]', fontsize=12)
+    ax.legend(frameon=False, loc=4, fontsize=12)
+    ax.xaxis.offsetText.set_visible(False)
+    # Line of best fit for non-near road 
+    idx = np.isfinite(aqs_other['TROPOMINO2'].values) & \
+        np.isfinite(aqs_other['Sample Measurement'].values)
+    m, b = np.polyfit(aqs_other['TROPOMINO2'].values[idx], 
+        aqs_other['Sample Measurement'].values[idx], 1)
+    r2 = np.corrcoef(aqs_other['TROPOMINO2'].values[idx], 
+        aqs_other['Sample Measurement'].values[idx])[0,1]**2
+    ax.plot(np.sort(aqs_other['TROPOMINO2'].values), (m*
+        np.sort(aqs_other['TROPOMINO2'].values)+b), color=color_non, 
+        label='Linear fit')
+    print('Check to ensure that the plot says'+
+        ' %.2E, as this is hard-coded in!'%Decimal(m))
+    ax.set_xlim([0,1.25e16])
+    ax.set_ylim([0,26])
+    # Most and least polluted collocated NO2 from TROPOMI
+    tropomi_90 = aqs_other['TROPOMINO2'].values[np.where(
+        aqs_other['TROPOMINO2'].values > np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 90))].mean()
+    tropomi_10 = aqs_other['TROPOMINO2'].values[np.where(
+        aqs_other['TROPOMINO2'].values < np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 10))].mean()
+    # AQS NO2 at most and least polluted TROPOMI NO2 sites
+    aqs_90 = aqs_other['Sample Measurement'].values[np.where(
+        aqs_other['TROPOMINO2'].values > np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 90))].mean()
+    aqs_10 = aqs_other['Sample Measurement'].values[np.where(
+        aqs_other['TROPOMINO2'].values < np.nanpercentile(
+        aqs_other['TROPOMINO2'].values, 10))].mean()    
+    # # Indicate the the 90th percentile vs. 10th percentile AQS ratio divided 
+    # # by the 90th percentile vs. 10th percentile TROPOMI ratio
+    # ratio = (tropomi_90/tropomi_10)/(aqs_90/aqs_10)
+    ax.text(0.05e16, 19.5, 'm = 1.5 x 10$^{-15}$ ppbv (molec cm$^{-2}$)$^{-1}$'+
+        '\nb = %.1f\nR$^{2}$ = 0.62'%b, color=color_non, fontsize=12)
+    # ax.text(0.05e16, 18.5, 'Ratio = %.1f'%(ratio), color=color_non, fontsize=12)
+    # Remove on-road stations: 
+    aqs_no2_raw = aqs_no2_raw.loc[~aqs_no2_raw['Site ID'].isin(onroad)]
+    # Select stations where TROPOMI values indicate very polluted (> 90th 
+    # percentile) conditions and not polluted (< 10th percentile)
+    tropomi_polluted = aqs_other.iloc[np.where(aqs_other['TROPOMINO2'].values > 
+        np.nanpercentile(aqs_other['TROPOMINO2'].values, 90))].index
+    tropomi_notpolluted = aqs_other.iloc[np.where(aqs_other['TROPOMINO2'].values < 
+        np.nanpercentile(aqs_other['TROPOMINO2'].values, 10))].index
+    aqs_no2_raw_polluted = aqs_no2_raw.loc[aqs_no2_raw['Site ID'].isin(
+        tropomi_polluted)]
+    aqs_no2_raw_notpolluted = aqs_no2_raw.loc[aqs_no2_raw['Site ID'].isin(
+        tropomi_notpolluted)]
+    aqs_no2_raw_polluted = aqs_no2_raw_polluted.groupby(['Time Local']).mean()
+    aqs_no2_raw_notpolluted = aqs_no2_raw_notpolluted.groupby(['Time Local']).mean()
+    aqs_no2_raw_mean = aqs_no2_raw.groupby(['Time Local']).mean()
+    ax2.plot(aqs_no2_raw_notpolluted['Sample Measurement'], '-', color='#0095A8',
+              label='Least polluted')
+    ax2.plot(aqs_no2_raw_polluted['Sample Measurement'], '-', color='#FF7043',
+              label='Most polluted')
+    # ax2.plot(aqs_no2_raw_mean['Sample Measurement'], '-k', label='Non-on-road')
+    ax2.legend(frameon=False, loc=1)
+    ax2.set_xlabel('Local time', fontsize=12)
+    ax2.set_ylabel('AQS NO$_{2}$ [ppbv]', fontsize=12)
+    for tick in ax2.get_xticklabels():
+        tick.set_rotation(45)
+    ax2.vlines(x='13:00', ymin=0, ymax=20, linestyle='--', color='darkgrey',
+        zorder=0)
+    ax2.set_xlim(['00:00','23:00'])
+    ax2.set_ylim([0,18])
+    # Include differences between 24-hour average and the 13:00 value for 
+    # all three curves
+    ratio = (aqs_no2_raw_polluted['Sample Measurement'].values.mean()/
+        aqs_no2_raw_polluted['Sample Measurement']['13:00'])
+    ax2.text('01:00', 8, '24-hour average/13:00 hours = %.1f'%(ratio), 
+        color='#FF7043', fontsize=12)
+    ratio = (aqs_no2_raw_notpolluted['Sample Measurement'].values.mean()/
+        aqs_no2_raw_notpolluted['Sample Measurement']['13:00'])
+    ax2.text('01:00', 2.5, '24-hour average/13:00 hours = %.1f'%(ratio), 
+        color='#0095A8', fontsize=12)
+    plt.subplots_adjust(hspace=0.35)
+    plt.savefig(DIR_FIGS+'figS1_revised.pdf', dpi=1000)
+    return 
+
+def figS2(FIPS):
+    """
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.lines import Line2D
+    import pandas as pd
+    # NHGIS census information version (may need to change if there are 
+    # updates to census information)
+    nhgis_version = '0003_ds239_20185_2018'
+    # DataFrame that will be filled with harmonzied data for multiple states
+    harmonizedms = pd.DataFrame()
+    # Loop through states of interest and read in harmonized NO2/census data
+    for FIPS_i in FIPS:
+        state_harm_i = pd.read_csv(DIR_HARM+'metsens/'
+            'Tropomi_NO2_interpolated_%s_nhgis%s_tract_metsens.csv'%(FIPS_i, 
+            nhgis_version), delimiter=',', header=0, engine='python')
+        # For states with FIPS codes 0-9, there is no leading zero in their 
+        # GEOID row, so add one such that all GEOIDs for any particular state
+        # are identical in length
+        if FIPS_i in ['01','02','03','04','05','06','07','08','09']:
+            state_harm_i['GEOID'] = state_harm_i['GEOID'].map(
+            lambda x: f'{x:0>11}')
+        # Make GEOID a string and index row 
+        state_harm_i = state_harm_i.set_index('GEOID')
+        state_harm_i.index = state_harm_i.index.map(str)
+        # Make other columns floats
+        for col in state_harm_i.columns:
+            if col != 'FIPS':
+                state_harm_i[col] = state_harm_i[col].astype(float)
+        harmonizedms = harmonizedms.append(state_harm_i)
+    # Split into rural and urban tracts
+    harmonizedms_urban, harmonizedms_rural = \
+        tropomi_census_utils.split_harmonized_byruralurban(harmonizedms)
+    # All
+    frac_white = ((harmonizedms['AJWNE002'])/harmonizedms['AJWBE001'])
+    mostwhite = harmonizedms.iloc[np.where(frac_white > 
+        np.nanpercentile(frac_white, ptile_upper))]
+    leastwhite = harmonizedms.iloc[np.where(frac_white < 
+        np.nanpercentile(frac_white, ptile_lower))]
+    mostwealthy = harmonizedms.loc[harmonizedms['AJZAE001'] > 
+        np.nanpercentile(harmonizedms['AJZAE001'], 90)]
+    leastwealthy = harmonizedms.loc[harmonizedms['AJZAE001'] < 
+        np.nanpercentile(harmonizedms['AJZAE001'], 10)]
+    frac_educated = (harmonizedms.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
+        harmonizedms['AJYPE001'])
+    mosteducated = harmonizedms.iloc[np.where(frac_educated > 
+        np.nanpercentile(frac_educated, 90))]
+    leasteducated = harmonizedms.iloc[np.where(frac_educated < 
+        np.nanpercentile(frac_educated, 10))]
+    mosts = [mostwhite, mostwealthy, mosteducated]
+    leasts = [leastwhite, leastwealthy, leasteducated]
+    # Urban    
+    frac_white = ((harmonizedms_urban['AJWNE002'])/harmonizedms_urban['AJWBE001'])
+    mostwhite = harmonizedms_urban.iloc[np.where(frac_white > 
+        np.nanpercentile(frac_white, ptile_upper))]
+    leastwhite = harmonizedms_urban.iloc[np.where(frac_white < 
+        np.nanpercentile(frac_white, ptile_lower))]
+    mostwealthy = harmonizedms_urban.loc[harmonizedms_urban['AJZAE001'] > 
+        np.nanpercentile(harmonizedms_urban['AJZAE001'], 90)]
+    leastwealthy = harmonizedms_urban.loc[harmonizedms_urban['AJZAE001'] < 
+        np.nanpercentile(harmonizedms_urban['AJZAE001'], 10)]
+    frac_educated = (harmonizedms_urban.loc[:,'AJYPE019':'AJYPE025'].sum(axis=1)/
+        harmonizedms_urban['AJYPE001'])
+    mosteducated = harmonizedms_urban.iloc[np.where(frac_educated > 
+        np.nanpercentile(frac_educated, 90))]
+    leasteducated = harmonizedms_urban.iloc[np.where(frac_educated < 
+        np.nanpercentile(frac_educated, 10))]
+    mosts_urban = [mostwhite, mostwealthy, mosteducated]
+    leasts_urban = [leastwhite, leastwealthy, leasteducated]
+    # Plotting
+    color_most = '#0095A8'
+    color_least = '#FF7043'
+    fig = plt.figure(figsize=(12,5))
+    ax1 = plt.subplot2grid((2,3),(0,0),rowspan=2)
+    ax2 = plt.subplot2grid((2,3),(0,1),rowspan=2)
+    ax3 = plt.subplot2grid((2,3),(0,2),rowspan=2)
+    alpha = 1
+    yticks = [0.,1,2,3,4,5,6,7,8.,9,10,11,12,13,14]
+    for i, ax in enumerate([ax1, ax2, ax3]):
+        most = mosts[i]
+        least = leasts[i]
+        # Seven day averages
+        ax.plot(most['trop7_031519'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_031519'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_032219'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_032219'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_032919'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_032919'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_040519'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_040519'].mean(), 1, 'o', alpha=alpha,
+            color=color_least)
+        ax.plot(most['trop7_041219'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_041219'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_041919'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_041919'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_042619'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_042619'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_050319'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_050319'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_051019'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_051019'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_051719'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_051719'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_052419'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_052419'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_053119'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_053119'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_060719'].mean(), 1, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_060719'].mean(), 1, 'o', alpha=alpha, 
+            color=color_least)
+        # 14 day averages
+        ax.plot(most['trop14_031519'].mean(), 2, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_031519'].mean(), 2, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_032919'].mean(), 2, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_032919'].mean(), 2, 'o', alpha=alpha,
+            color=color_least)
+        ax.plot(most['trop14_041219'].mean(), 2, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_041219'].mean(), 2, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_042619'].mean(), 2, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_042619'].mean(), 2, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_051019'].mean(), 2, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_051019'].mean(), 2, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_052419'].mean(), 2, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_052419'].mean(), 2, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_060719'].mean(), 2, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_060719'].mean(), 2, 'o', alpha=alpha, 
+            color=color_least)
+        # 31 day averages
+        ax.plot(most['trop31_031319'].mean(), 3, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop31_031319'].mean(), 3, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop31_041319'].mean(), 3, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop31_041319'].mean(), 3, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop31_051419'].mean(), 3, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop31_051419'].mean(), 3, 'o', alpha=alpha, 
+            color=color_least)
+        # 3 month period
+        ax.plot(most['trop_base'].mean(), 4, 'o', color=color_most)
+        ax.plot(least['trop_base'].mean(), 4, 'o', color=color_least)
+        # 1 year period
+        ax.plot(most['trop_2019'].mean(), 5, 'o', color=color_most)
+        ax.plot(least['trop_2019'].mean(), 5, 'o', color=color_least)
+        # TROPOMI record period
+        ax.plot(most['trop_all'].mean(), 6, 'o', color=color_most)
+        ax.plot(least['trop_all'].mean(), 6, 'o', color=color_least)
+        # # # # Urban    
+        most = mosts_urban[i]
+        least = leasts_urban[i]
+        ax.plot(most['trop7_031519'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_031519'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_032219'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_032219'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_032919'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_032919'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_040519'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_040519'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_041219'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_041219'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_041919'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_041919'].mean(), 9, 'o', alpha=alpha,
+            color=color_least)
+        ax.plot(most['trop7_042619'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_042619'].mean(), 9, 'o', alpha=alpha,
+            color=color_least)
+        ax.plot(most['trop7_050319'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_050319'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_051019'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_051019'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_051719'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_051719'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_052419'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_052419'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_053119'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_053119'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop7_060719'].mean(), 9, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop7_060719'].mean(), 9, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_031519'].mean(), 10, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_031519'].mean(), 10, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_032919'].mean(), 10, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_032919'].mean(), 10, 'o', alpha=alpha,
+            color=color_least)
+        ax.plot(most['trop14_041219'].mean(), 10, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_041219'].mean(), 10, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_042619'].mean(), 10, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_042619'].mean(), 10, 'o', alpha=alpha,
+            color=color_least)
+        ax.plot(most['trop14_051019'].mean(), 10, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_051019'].mean(), 10, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_052419'].mean(), 10, 'o', alpha=alpha,
+            color=color_most)
+        ax.plot(least['trop14_052419'].mean(), 10, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop14_060719'].mean(), 10, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop14_060719'].mean(), 10, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop31_031319'].mean(), 11, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop31_031319'].mean(), 11, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop31_041319'].mean(), 11, 'o', alpha=alpha,
+            color=color_most)
+        ax.plot(least['trop31_041319'].mean(), 11, 'o', alpha=alpha, 
+            color=color_least)
+        ax.plot(most['trop31_051419'].mean(), 11, 'o', alpha=alpha, 
+            color=color_most)
+        ax.plot(least['trop31_051419'].mean(), 11, 'o', alpha=alpha,
+            color=color_least)
+        ax.plot(most['trop_base'].mean(), 12, 'o', color=color_most)
+        ax.plot(least['trop_base'].mean(), 12, 'o', color=color_least)
+        ax.plot(most['trop_2019'].mean(), 13, 'o', color=color_most)
+        ax.plot(least['trop_2019'].mean(), 13, 'o', color=color_least)
+        ax.plot(most['trop_all'].mean(), 14, 'o', color=color_most)
+        ax.plot(least['trop_all'].mean(), 14, 'o', color=color_least)    
+        ax.set_xlim([-0.5e15,9e15])
+        ax.set_ylim([-0.5,14.5])
+        ax.set_xticks(np.arange(0e15,9e15,1e15))
+        ax.set_yticks(yticks)
+        ax.set_yticklabels([])
+        ax.tick_params(axis='y', left=False)
+        ax.set_xlabel('NO$_{2}$/10$^{15}$ [molec cm$^{-2}$]', x=0.26, 
+            color='darkgrey')
+        ax.tick_params(axis='x', colors='darkgrey')
+        ax.xaxis.offsetText.set_visible(False)
+        for side in ['right', 'left', 'top', 'bottom']:
+            ax.spines[side].set_visible(False)
+        ax.grid(axis='x', zorder=0, color='darkgrey')
+        ax.invert_yaxis()
+    ax1.set_yticks(yticks)
+    ax1.set_yticklabels([r'$\bf{All}$', '1 week', '2 weeks', '1 month', 'Baseline', '2019', 
+        '2018-2019', '', r'$\bf{Urban}$', '1 week', '2 weeks', '1 month', 'Baseline', '2019', 
+        '2018-2019'])
+    ax1.set_title('(a) Racial background', loc='left', fontsize=10)
+    ax2.set_title('(b) Median household income', loc='left', fontsize=10)
+    ax3.set_title('(c) Educational attainment', loc='left', fontsize=10)
+    plt.subplots_adjust(wspace=0.05, left=0.09, top=0.95, bottom=0.17, 
+        right=0.98)
+    # Custom legends for different colored scatterpoints
+    custom_lines = [Line2D([0], [0], marker='o', color=color_most, lw=0),
+        Line2D([0], [0], marker='o', color=color_least, lw=0)]
+    ax1.legend(custom_lines, ['Most white', 'Least white'], 
+        bbox_to_anchor=(0.48, -0.22), loc=8, ncol=2, fontsize=10, 
+        frameon=False)
+    custom_lines = [Line2D([0], [0], marker='o', color=color_most, lw=0),
+        Line2D([0], [0], marker='o', color=color_least, lw=0)]
+    ax2.legend(custom_lines, ['Highest income', 'Lowest income'], 
+        bbox_to_anchor=(0.48, -0.22), loc=8, ncol=2, fontsize=10, 
+        frameon=False)
+    custom_lines = [Line2D([0], [0], marker='o', color=color_most, lw=0),
+        Line2D([0], [0], marker='o', color=color_least, lw=0)]
+    ax3.legend(custom_lines, ['Most educated', 'Least educated'], 
+        bbox_to_anchor=(0.48, -0.22), loc=8, ncol=2, fontsize=10, 
+        frameon=False)
+    plt.savefig(DIR_FIGS+'figS2_revised.pdf', dpi=1000)
+    return 
+
+def figS3(harmonized, harmonized_rural):
     """
     """
     import numpy as np
@@ -1794,7 +2316,7 @@ def figS1(harmonized, harmonized_rural):
         va='center')
     print('Smallest gains for NO2 = %.2E'%Decimal(
         increaseno2_all['NO2_ABS'].mean()))
-    ax1.text(increaseno2_all['NO2_ABS'].mean()+2e13, 0, '0.19', color='k', 
+    ax1.text(increaseno2_all['NO2_ABS'].mean()+2e13, 0, '0.22', color='k', 
         va='center')
     ax1b.barh([2,1,0], [decreaseno2_rural['NO2_ABS'].mean(), harmonized_rural[
         'NO2_ABS'].mean(), increaseno2_rural['NO2_ABS'].mean()], 
@@ -1917,8 +2439,12 @@ def figS1(harmonized, harmonized_rural):
         increaseno2_rural['AJWNE008'])/increaseno2_rural['AJWBE001']).mean()], 
             colors):             
         ax5b.barh(0, data, color=color, left=left)
-        ax5b.text(left+0.01, 0, '%d'%(np.round(data,2)*100), color='k', 
-            va='center')    
+        if i==1:
+            ax5b.text(left+0.005, 0, '%d'%(np.round(data,2)*100), color='k', 
+                va='center')
+        else:        
+            ax5b.text(left+0.01, 0, '%d'%(np.round(data,2)*100), color='k', 
+                va='center')
         if i==2:
             ax5b.text(0.88, -0.9, labels[i], color=colors[i], va='center',
                 fontweight='bold')
@@ -2205,10 +2731,10 @@ def figS1(harmonized, harmonized_rural):
     fig.text(0.5, 0.98, '$\mathbf{All}$', fontsize=14, ha='center')
     fig.text(0.5, 0.48, '$\mathbf{Rural}$', fontsize=14, ha='center')
     plt.subplots_adjust(top=0.95, bottom=0.05, hspace=3)
-    plt.savefig(DIR_FIGS+'figS1_revised.pdf', dpi=1000)
+    plt.savefig(DIR_FIGS+'figS3_revised.pdf', dpi=1000)
     return 
 
-def figS2(harmonized, harmonized_urban, harmonized_rural):
+def figS4(harmonized, harmonized_urban, harmonized_rural):
     """
     """
     import numpy as np
@@ -2624,11 +3150,11 @@ def figS2(harmonized, harmonized_urban, harmonized_rural):
     ax1.legend(custom_lines, ['Baseline', 'Lockdown'], 
         bbox_to_anchor=(0.2, -0.15), loc=8, ncol=2, fontsize=10, 
         frameon=False)
-    plt.savefig(DIR_FIGS+'figS2_revised.pdf', dpi=1000)
+    plt.savefig(DIR_FIGS+'figS4_revised.pdf', dpi=1000)
     plt.show()
     return 
 
-def figS3(harmonized, harmonized_rural, harmonized_urban):
+def figS5(harmonized, harmonized_rural, harmonized_urban):
     """
     """
     import numpy as np
@@ -2865,204 +3391,545 @@ def figS3(harmonized, harmonized_rural, harmonized_urban):
     ax15.legend(custom_lines, ['Highest ownership', 'Lowest ownership', 
         'Baseline', 'Lockdown'], bbox_to_anchor=(1.54, -0.07), loc=8, ncol=1, 
         frameon=False)
-    plt.savefig(DIR_FIGS+'figS3_revised.pdf', dpi=1000)
+    plt.savefig(DIR_FIGS+'figS5_revised.pdf', dpi=1000)
     plt.show()
     return
 
-def figS4():
+def figS6(harmonized_urban): 
     """
     """
-    def get_merged_csv(flist, **kwargs):
-        """Function reads CSV files in the list comprehension loop, this list of
-        DataFrames will be passed to the pd.concat() function which will return 
-        single concatenated DataFrame. Adapted from: 
-        https://stackoverflow.com/questions/35973782/reading-multiple-csv-
-        files-concatenate-list-of-file-names-them-into-a-singe-dat
-        """
-        from dask import dataframe as dd
-        return dd.concat([dd.read_csv(f, **kwargs) for f in flist])
-    import time
-    start_time = time.time()
-    print('# # # # Loading AQS NO2 ...') 
     import numpy as np
-    from decimal import Decimal
-    from dask import dataframe as dd
+    import pandas as pd
+    from datetime import datetime
+    import scipy.stats as st
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    from scipy import stats
+    import pandas as pd
+    # Read in csv file for vehicle ownership/road density
+    noxsource = pd.read_csv(DIR_HARM+'noxsourcedensity_us.csv', delimiter=',', 
+        header=0, engine='python')
+    # Leading 0 for state FIPS codes < 10 
+    noxsource['GEOID'] = noxsource['GEOID'].map(lambda x: f'{x:0>11}')
+    # Make GEOID a string and index row 
+    noxsource = noxsource.set_index('GEOID')
+    noxsource.index = noxsource.index.map(str)
+    # Make other columns floats
+    for col in noxsource.columns:
+        noxsource[col] = noxsource[col].astype(float)
+    # Merge with harmonized census data
+    harmonized_noxsource = harmonized_urban.merge(noxsource, left_index=True, 
+        right_index=True)
+    ports_byrace = []
+    ports_byincome = []
+    ports_byeducation = [] 
+    ports_byethnicity = []
+    ports_byvehicle = []
+    cems_byrace = []
+    cems_byincome = []
+    cems_byeducation = []
+    cems_byethnicity = []
+    cems_byvehicle = []
+    airports_byrace = []
+    airports_byincome = []
+    airports_byeducation = []
+    airports_byethnicity = []
+    airports_byvehicle = []
+    rail_byrace = []
+    rail_byincome = []
+    rail_byeducation = []
+    rail_byethnicity = []
+    rail_byvehicle = []
+    income = harmonized_noxsource['AJZAE001']
+    race = (harmonized_noxsource['AJWNE002']/harmonized_noxsource['AJWBE001'])
+    education = (harmonized_noxsource.loc[:,'AJYPE019':'AJYPE025'
+        ].sum(axis=1)/harmonized_noxsource['AJYPE001'])
+    ethnicity = (harmonized_noxsource['AJWWE002']/harmonized_noxsource['AJWWE001'])
+    vehicle = 1-harmonized_noxsource['FracNoCar']
+    for ptilel, ptileu in zip(np.arange(0,100,10), np.arange(10,110,10)):    
+        # By income
+        decile_income = harmonized_noxsource.loc[(income>
+            np.nanpercentile(income, ptilel)) & (
+            income<=np.nanpercentile(income, ptileu))]
+        ports_byincome.append(decile_income['portswithin1'].mean())             
+        cems_byincome.append(decile_income['CEMSwithin1'].mean())  
+        airports_byincome.append(decile_income['airportswithin1'].mean())  
+        rail_byincome.append(decile_income['railwithin1'].mean())  
+        # By race            
+        decile_race = harmonized_noxsource.loc[(race>
+            np.nanpercentile(race, ptilel)) & (
+            race<=np.nanpercentile(race, ptileu))] 
+        ports_byrace.append(decile_race['portswithin1'].mean())             
+        cems_byrace.append(decile_race['CEMSwithin1'].mean())  
+        airports_byrace.append(decile_race['airportswithin1'].mean())  
+        rail_byrace.append(decile_race['railwithin1'].mean())
+        # By education 
+        decile_education = harmonized_noxsource.loc[(education>np.nanpercentile(
+            education, ptilel)) & (education<=np.nanpercentile(education, 
+            ptileu))]
+        ports_byeducation.append(decile_education['portswithin1'].mean())             
+        cems_byeducation.append(decile_education['CEMSwithin1'].mean())  
+        airports_byeducation.append(decile_education['airportswithin1'].mean())  
+        rail_byeducation.append(decile_education['railwithin1'].mean())
+        # By ethnicity
+        decile_ethnicity = harmonized_noxsource.loc[(ethnicity>
+            np.nanpercentile(ethnicity, ptilel)) & (
+            ethnicity<=np.nanpercentile(ethnicity, ptileu))]    
+        ports_byethnicity.append(decile_ethnicity['portswithin1'].mean())             
+        cems_byethnicity.append(decile_ethnicity['CEMSwithin1'].mean())  
+        airports_byethnicity.append(decile_ethnicity['airportswithin1'].mean())  
+        rail_byethnicity.append(decile_ethnicity['railwithin1'].mean())
+        # By vehicle ownership            
+        decile_vehicle = harmonized_noxsource.loc[(vehicle>
+            np.nanpercentile(vehicle, ptilel)) & (vehicle<=np.nanpercentile(
+            vehicle, ptileu))]
+        ports_byvehicle.append(decile_vehicle['portswithin1'].mean())             
+        cems_byvehicle.append(decile_vehicle['CEMSwithin1'].mean())  
+        airports_byvehicle.append(decile_vehicle['airportswithin1'].mean())  
+        rail_byvehicle.append(decile_vehicle['railwithin1'].mean())    
+    fig = plt.figure(figsize=(11.5,7))
+    ax1 = plt.subplot2grid((2,2),(0,0))
+    ax2 = plt.subplot2grid((2,2),(0,1))
+    ax3 = plt.subplot2grid((2,2),(1,0))
+    ax4 = plt.subplot2grid((2,2),(1,1))
+    # Colors for each demographic variable
+    color1 = '#0095A8'
+    color2 = '#FF7043'
+    color3 = '#5D69B1'
+    color4 = '#CC3A8E'
+    color5 = '#4daf4a'
+    axes = [ax1, ax2, ax3, ax4]
+    curves = [[ports_byrace, ports_byincome, ports_byeducation, 
+          ports_byethnicity, ports_byvehicle], 
+        [cems_byrace, cems_byincome, cems_byeducation, cems_byethnicity, 
+          cems_byvehicle], 
+        [airports_byrace, airports_byincome, airports_byeducation, 
+          airports_byethnicity, airports_byvehicle],
+        [rail_byrace, rail_byincome, rail_byeducation, rail_byethnicity, 
+          rail_byvehicle]]
+    # Loop through NOx sources
+    for i in np.arange(0,4,1):
+        # Plotting
+        axes[i].plot(curves[i][1], ls='-', lw=2, color=color1, zorder=11)
+        axes[i].plot(curves[i][2], ls='-', lw=2, color=color2, zorder=11)
+        axes[i].plot(curves[i][0], ls='-', lw=2, color=color3, zorder=11)
+        axes[i].plot(curves[i][3], ls='-', lw=2, color=color4, zorder=11)
+        axes[i].plot(curves[i][4], ls='-', lw=2, color=color5, zorder=11)
+    # Legend
+    ax1.text(0.5, 0.92, 'Income', fontsize=12, va='center',
+        color=color1, ha='center', transform=ax1.transAxes)
+    ax1.annotate('Higher',xy=(0.58,0.92),xytext=(0.78,0.92), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color1), 
+        fontsize=12, color=color1, xycoords=ax1.transAxes)
+    ax1.annotate('Lower',xy=(0.41,0.92),xytext=(0.1,0.92), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color1), 
+        fontsize=12, color=color1, xycoords=ax1.transAxes)
+    ax1.text(0.5, 0.84, 'Education', fontsize=12, color=color2, va='center', 
+        ha='center', transform=ax1.transAxes)
+    ax1.annotate('More',xy=(0.61,0.84),xytext=(0.78,0.84), va='center', 
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), fontsize=12,
+        color=color2, xycoords=ax1.transAxes)
+    ax1.annotate('Less',xy=(0.38,0.84),xytext=(0.1,0.84), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), 
+        fontsize=12, color=color2, xycoords=ax1.transAxes)
+    ax1.text(0.5, 0.76, 'White', fontsize=12, va='center',
+        color=color3, ha='center', transform=ax1.transAxes)
+    ax1.annotate('More',xy=(0.57,0.76),xytext=(0.78,0.76), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), color=color3,
+        fontsize=12, xycoords=ax1.transAxes)
+    ax1.annotate('Less',xy=(0.43,0.76),xytext=(0.1,0.76), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), fontsize=12, 
+        color=color3, xycoords=ax1.transAxes)
+    ax1.text(0.5, 0.68, 'Hispanic', fontsize=12, 
+        color=color4, ha='center', va='center', transform=ax1.transAxes)
+    ax1.annotate('Less',xy=(0.59,0.68),xytext=(0.78,0.68), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color4), fontsize=12, 
+        color=color4, xycoords=ax1.transAxes)
+    ax1.annotate('More',xy=(0.4,0.68),xytext=(0.1,0.68), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color4), fontsize=12,
+        color=color4, xycoords=ax1.transAxes)
+    ax1.text(0.5, 0.6, 'Vehicle ownership', fontsize=12, ha='center',
+        va='center', color=color5, transform=ax1.transAxes)
+    ax1.annotate('More',xy=(0.65,0.6),xytext=(0.78,0.6), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color5), fontsize=12, 
+        color=color5, xycoords=ax1.transAxes)
+    ax1.annotate('Less',xy=(0.34,0.6),xytext=(0.1,0.6), va='center',
+        arrowprops=dict(arrowstyle= '<|-', lw=1, color=color5), fontsize=12,
+        color=color5, xycoords=ax1.transAxes)
+    for ax in axes:
+        ax.set_xlim([0,9])
+        ax.set_xticks(np.arange(0,10,1))
+        ax.set_xticklabels([])
+    for ax in [ax3, ax4]:
+        ax.set_xticklabels(['First', 'Second', 'Third', 'Fourth', 'Fifth', 
+            'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'], fontsize=10)
+        ax.set_xlabel('Decile', fontsize=12)
+    ax1.set_ylim([0,0.01])
+    ax1.set_yticks(np.linspace(0,0.01,9))
+    ax1.set_yticklabels(['0','', '2.5', '', '5.0', '', '7.5', '',
+        '10$\:$x$\:$10$^{\mathregular{-2}}$'])
+    ax2.set_ylim([0.0, 0.04])
+    ax2.set_yticks(np.linspace(0,0.04,9))
+    ax2.set_yticklabels(['0', '', '1', '', '2', '', '3', '', 
+        '4$\:$x$\:$10$^{\mathregular{-2}}$'])
+    ax3.set_ylim([0,0.006])
+    ax3.set_yticks(np.linspace(0,0.006,9))
+    ax3.set_yticklabels(['0', '', '1.5' , '', '3.0' , '', '4.5' , '', 
+        '6.0$\:$x$\:$10$^{\mathregular{-3}}$'])
+    ax4.set_ylim([0,4])
+    ax4.set_yticks(np.linspace(0,4,9))
+    ax4.set_yticklabels(['0','','1','','2','','3','','4'])
+    ax1.set_title('(a) Port density [ports (1 km radius)$^{-1}$]', 
+        fontsize=12, loc='left')
+    ax2.set_title('(b) Industry density [industries (1 km radius)$^{-1}$]', 
+        fontsize=12, loc='left')
+    ax3.set_title('(c) Airport density [airports (1 km radius)$^{-1}$]', 
+        fontsize=12, loc='left')
+    ax4.set_title('(d) Railroad density [railroads (1 km radius)$^{-1}$]', 
+        fontsize=12, loc='left')
+    plt.subplots_adjust(left=0.08, right=0.95)
+    plt.savefig(DIR_FIGS+'figS6_revised.pdf', dpi=1000)
+    return
+
+def figS7():   
+    import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
-    import sys
-    sys.path.append('/Users/ghkerr/phd/utils/')
-    from geo_idx import geo_idx
-    PATH_AQS = '/Users/ghkerr/GW/data/aq/aqs/'
-    years = [2019]
-    date_start, date_end = '2019-03-13', '2019-06-13'
-    dtype = {'State Code' : np.str,'County Code' : np.str,'Site Num' : np.str,
-        'Parameter Code' : np.str, 'POC' : np.str, 'Latitude' : np.float64,
-        'Longitude' : np.float64, 'Datum' : np.str, 'Parameter Name' : np.str,
-        'Date Local' : np.str, 'Time Local' : np.str, 'Date GMT' : np.str,
-        'Time GMT' : np.str, 'Sample Measurement' : np.float64, 
-        'Units of Measure' : np.str, 'MDL' : np.str, 'Uncertainty' : np.str,
-        'Qualifier' : np.str, 'Method Type' : np.str, 'Method Code' : np.str,
-        'Method Name' : np.str, 'State Name' : np.str, 
-        'County Name' : np.str, 'Date of Last Change' : np.str}
-    filenames_no2 = []
-    # Fetch file names for years of interest
-    for year in years:
-        filenames_no2.append(PATH_AQS+'hourly_42602_%s.csv'%year)
-    filenames_no2.sort()
-    # Read multiple CSV files (yearly) into Pandas dataframe 
-    aqs_no2_raw = get_merged_csv(filenames_no2, dtype=dtype, 
-        usecols=list(dtype.keys()))
-    # Create site ID column 
-    aqs_no2_raw['Site ID'] = aqs_no2_raw['State Code']+'-'+\
-        aqs_no2_raw['County Code']+'-'+aqs_no2_raw['Site Num']
-    # Drop unneeded columns; drop latitude/longitude coordinates for 
-    # temperature observations as the merging of the O3 and temperature 
-    # DataFrames will supply these coordinates 
-    to_drop = ['Parameter Code', 'POC', 'Datum', 'Parameter Name',
-        'Date GMT', 'Time GMT', 'Units of Measure', 'MDL', 'Uncertainty', 
-        'Qualifier', 'Method Type', 'Method Code', 'Method Name', 'State Name',
-        'County Name', 'Date of Last Change', 'State Code', 'County Code', 
-        'Site Num']
-    aqs_no2_raw = aqs_no2_raw.drop(to_drop, axis=1)
-    # Select months in measuring period     
-    aqs_no2_raw = aqs_no2_raw.loc[dd.to_datetime(aqs_no2_raw['Date Local']).isin(
-        pd.date_range(date_start,date_end))]
-    aqs_no2 = aqs_no2_raw.groupby(['Site ID']).mean()
-    # Turns lazy Dask collection into its in-memory equivalent
-    aqs_no2 = aqs_no2.compute()
-    aqs_no2_raw = aqs_no2_raw.compute()
-    # Loop through rows (stations) and find closest TROPOMI grid cell
-    tropomi_no2_atstations = []
-    for row in np.arange(0, len(aqs_no2), 1):
-        aqs_no2_station = aqs_no2.iloc[row]
-        lng_station = aqs_no2_station['Longitude']
-        lat_station = aqs_no2_station['Latitude']
-        lng_tropomi_near = geo_idx(lng_station, lng_dg)
-        lat_tropomi_near = geo_idx(lat_station, lat_dg)
-        if (lng_tropomi_near is None) or (lat_tropomi_near is None):
-            tropomi_no2_atstations.append(np.nan)
-        else:
-            tropomi_no2_station = no2_pre_dg[lat_tropomi_near,lng_tropomi_near]
-            tropomi_no2_atstations.append(tropomi_no2_station)
-    aqs_no2['TROPOMINO2'] = tropomi_no2_atstations
-    # Site IDs for on-road monitoring sites 
-    # from https://www3.epa.gov/ttnamti1/nearroad.html
-    onroad = ['13-121-0056','13-089-0003','48-453-1068','06-029-2019',
-        '24-027-0006','24-005-0009','01-073-2059','16-001-0023','25-025-0044',
-        '25-017-0010','36-029-0023','37-119-0045','17-031-0218','17-031-0118',
-        '39-061-0048','39-035-0073','39-049-0038','48-113-1067','48-439-1053',
-        '08-031-0027','08-031-0028','19-153-6011','26-163-0093','26-163-0095',
-        '06-019-2016','09-003-0025','48-201-1066','48-201-1052','18-097-0087',
-        '12-031-0108','29-095-0042','32-003-1501','32-003-1502','06-059-0008',
-        '06-037-4008','21-111-0075','47-157-0100','12-011-0035','12-086-0035',
-        '55-079-0056','27-053-0962','27-037-0480','47-037-0040','22-071-0021',
-        '34-003-0010','36-081-0125','40-109-0097','12-095-0009','42-101-0075',
-        '42-101-0076','04-013-4019','04-013-4020','42-003-1376','41-067-0005',
-        '44-007-0030','37-183-0021','51-760-0025','06-071-0026','06-071-0027', 
-        '36-055-0015','06-067-0015','49-035-4002','48-029-1069','06-073-1017',
-        '06-001-0012','06-001-0013','06-001-0015','06-085-0006','72-061-0006',
-        '53-033-0030','53-053-0024','29-510-0094','29-189-0016','12-057-0113',
-        '12-057-1111','12-103-0027','51-059-0031','11-001-0051']
-    fig = plt.figure(figsize=(7,9))
-    ax = plt.subplot2grid((2,1),(0,0))
-    ax2 = plt.subplot2grid((2,1),(1,0))
-    # Axis titles
-    ax.set_title('(a)', loc='left', fontsize=12)
-    ax2.set_title('(b)', loc='left', fontsize=12)
-    color_white = '#0095A8'
-    color_non = '#FF7043'
-    # Select mobile sites vs other AQS sites
-    aqs_onroad = aqs_no2.loc[aqs_no2.index.isin(onroad)]
-    aqs_other = aqs_no2.loc[~aqs_no2.index.isin(onroad)]
+    import pandas as pd
+    import matplotlib.patches as mpatches
+    nei = '/Users/ghkerr/Downloads/2017neiJan_county_tribe_allsector/'+\
+        'esg_cty_sector_15468.csv'
+    nei = pd.read_csv(nei, delimiter=',', engine='python')
+    nei = nei.loc[nei['pollutant code']=='NOX']
+    # New York-Newark-Jersey City, NY-NJ-PA MSA
+    newyork = ['36047','36081','36061','36005','36085','36119','34003',
+        '34017','34031','36079','36087','36103','36059','34023','34025',
+        '34029','34035','34013','34039','34027','34037'	,'34019','42103']
+    # Los Angeles-Long Beach-Anaheim, CA MSA
+    losangeles = ['06037','06059']
+    # Chicago-Naperville-Elgin, IL-IN-WI MSA
+    chicago = ['17031','17037','17043','17063','17091','17089','17093',
+        '17111','17197','18073','18089','18111','18127','17097','55059']
+    # Dallas-Fort Worth-Arlington, TX MSA
+    dallas = ['48085','48113','48121','48139','48231','48257','48397',
+        '48251','48367','48439','48497']
+    # Houston-The Woodlands-Sugar Land, TX MSA
+    houston = ['48201','48157','48339','48039','48167','48291','48473',
+        '48071','48015']
+    # Washington-Arlington-Alexandria, DC-VA-MD-WV MSA
+    washington = ['11001','24009','24017','24021','24031','24033','51510',
+        '51013','51043','51047','51059','51600','51610','51061','51630',
+        '51107','51683','51685','51153','51157','51177','51179','51187']
+    # Miami-Fort Lauderdale-Pompano Beach, FL MSA	
+    miami = ['12086','12011','12099']
+    # Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA
+    philadelphia = ['34005','34007','34015','42017','42029','42091','42045',
+        '42101','10003','24015','34033']
+    # Atlanta-Sandy Springs-Alpharetta, GA MSA
+    atlanta = ['13121','13135','13067','13089','13063','13057','13117',
+        '13151','13223','13077','13097','13045','13113','13217','13015',
+        '13297','13247','13013','13255','13227','13143','13085','13035',
+        '13199','13171','13211','13231','13159','13149']
+    # Phoenix-Mesa-Chandler, AZ MSA
+    phoenix = ['04013','04021','04007']
+    # Boston-Cambridge-Newton, MA-NH MSA
+    boston = ['25021','25023','25025','25009','25017','33015','33017']
+    # San Francisco-Oakland-Berkeley, CA MSA
+    sanfrancisco = ['06001','06013','06075','06081','06041']
+    # Riverside-San Bernardino-Ontario, CA MSA
+    riverside = ['06065','06071']
+    # Detroit-Warren-Dearborn, MI MSA
+    detroit = ['26163','26125','26099','26093','26147','26087']
+    # Seattle-Tacoma-Bellevue, WA MSA
+    seattle = ['53033','53061','53053']
     # Plotting
-    ax.plot(aqs_onroad['TROPOMINO2'].values, 
-        aqs_onroad['Sample Measurement'].values, 'o', markersize=3, 
-        label='Near-road', color='darkgrey')
-    ax.plot(aqs_other['TROPOMINO2'].values, 
-        aqs_other['Sample Measurement'].values, 'ko', markersize=4, 
-        label='Not near-road')
-    ax.set_xlabel('TROPOMI NO$_{2}$/10$^{16}$ [molec cm$^{-2}$]', fontsize=12)
-    ax.set_ylabel('AQS NO$_{2}$ [ppbv]', fontsize=12)
-    ax.legend(frameon=False, loc=4, fontsize=12)
-    ax.xaxis.offsetText.set_visible(False)
-    # Line of best fit for non-near road 
-    idx = np.isfinite(aqs_other['TROPOMINO2'].values) & \
-        np.isfinite(aqs_other['Sample Measurement'].values)
-    m, b = np.polyfit(aqs_other['TROPOMINO2'].values[idx], 
-        aqs_other['Sample Measurement'].values[idx], 1)
-    r2 = np.corrcoef(aqs_other['TROPOMINO2'].values[idx], 
-        aqs_other['Sample Measurement'].values[idx])[0,1]**2
-    ax.plot(np.sort(aqs_other['TROPOMINO2'].values), (m*
-        np.sort(aqs_other['TROPOMINO2'].values)+b), color=color_non, 
-        label='Linear fit')
-    print('Check to ensure that the plot says'+
-        ' %.2E, as this is hard-coded in!'%Decimal(m))
-    ax.set_xlim([0,1.25e16])
-    ax.set_ylim([0,26])
-    # Most and least polluted collocated NO2 from TROPOMI
-    tropomi_90 = aqs_other['TROPOMINO2'].values[np.where(
-        aqs_other['TROPOMINO2'].values > np.nanpercentile(
-        aqs_other['TROPOMINO2'].values, 90))].mean()
-    tropomi_10 = aqs_other['TROPOMINO2'].values[np.where(
-        aqs_other['TROPOMINO2'].values < np.nanpercentile(
-        aqs_other['TROPOMINO2'].values, 10))].mean()
-    # AQS NO2 at most and least polluted TROPOMI NO2 sites
-    aqs_90 = aqs_other['Sample Measurement'].values[np.where(
-        aqs_other['TROPOMINO2'].values > np.nanpercentile(
-        aqs_other['TROPOMINO2'].values, 90))].mean()
-    aqs_10 = aqs_other['Sample Measurement'].values[np.where(
-        aqs_other['TROPOMINO2'].values < np.nanpercentile(
-        aqs_other['TROPOMINO2'].values, 10))].mean()    
-    # # Indicate the the 90th percentile vs. 10th percentile AQS ratio divided 
-    # # by the 90th percentile vs. 10th percentile TROPOMI ratio
-    # ratio = (tropomi_90/tropomi_10)/(aqs_90/aqs_10)
-    ax.text(0.05e16, 19.5, 'm = 1.5 x 10$^{-15}$ ppbv (molec cm$^{-2}$)$^{-1}$'+
-        '\nb = %.1f\nR$^{2}$ = 0.62'%b, color=color_non, fontsize=12)
-    # ax.text(0.05e16, 18.5, 'Ratio = %.1f'%(ratio), color=color_non, fontsize=12)
-    # Remove on-road stations: 
-    aqs_no2_raw = aqs_no2_raw.loc[~aqs_no2_raw['Site ID'].isin(onroad)]
-    # Select stations where TROPOMI values indicate very polluted (> 90th 
-    # percentile) conditions and not polluted (< 10th percentile)
-    tropomi_polluted = aqs_other.iloc[np.where(aqs_other['TROPOMINO2'].values > 
-        np.nanpercentile(aqs_other['TROPOMINO2'].values, 90))].index
-    tropomi_notpolluted = aqs_other.iloc[np.where(aqs_other['TROPOMINO2'].values < 
-        np.nanpercentile(aqs_other['TROPOMINO2'].values, 10))].index
-    aqs_no2_raw_polluted = aqs_no2_raw.loc[aqs_no2_raw['Site ID'].isin(
-        tropomi_polluted)]
-    aqs_no2_raw_notpolluted = aqs_no2_raw.loc[aqs_no2_raw['Site ID'].isin(
-        tropomi_notpolluted)]
-    aqs_no2_raw_polluted = aqs_no2_raw_polluted.groupby(['Time Local']).mean()
-    aqs_no2_raw_notpolluted = aqs_no2_raw_notpolluted.groupby(['Time Local']).mean()
-    aqs_no2_raw_mean = aqs_no2_raw.groupby(['Time Local']).mean()
-    ax2.plot(aqs_no2_raw_notpolluted['Sample Measurement'], '-', color='#0095A8',
-              label='Least polluted')
-    ax2.plot(aqs_no2_raw_polluted['Sample Measurement'], '-', color='#FF7043',
-              label='Most polluted')
-    # ax2.plot(aqs_no2_raw_mean['Sample Measurement'], '-k', label='Non-on-road')
-    ax2.legend(frameon=False, loc=1)
-    ax2.set_xlabel('Local time', fontsize=12)
-    ax2.set_ylabel('AQS NO$_{2}$ [ppbv]', fontsize=12)
-    for tick in ax2.get_xticklabels():
-        tick.set_rotation(45)
-    ax2.vlines(x='13:00', ymin=0, ymax=20, linestyle='--', color='darkgrey',
-        zorder=0)
-    ax2.set_xlim(['00:00','23:00'])
-    ax2.set_ylim([0,18])
-    # Include differences between 24-hour average and the 13:00 value for 
-    # all three curves
-    ratio = (aqs_no2_raw_polluted['Sample Measurement'].values.mean()/
-        aqs_no2_raw_polluted['Sample Measurement']['13:00'])
-    ax2.text('01:00', 8, '24-hour average/13:00 hours = %.1f'%(ratio), 
-        color='#FF7043', fontsize=12)
-    ratio = (aqs_no2_raw_notpolluted['Sample Measurement'].values.mean()/
-        aqs_no2_raw_notpolluted['Sample Measurement']['13:00'])
-    ax2.text('01:00', 2.5, '24-hour average/13:00 hours = %.1f'%(ratio), 
-        color='#0095A8', fontsize=12)
-    plt.subplots_adjust(hspace=0.35)
-    plt.savefig(DIR_FIGS+'figS4_revised.pdf', dpi=1000)
+    fig = plt.figure(figsize=(7,7))
+    axa = plt.subplot2grid((4,4),(0,0))
+    axb = plt.subplot2grid((4,4),(0,1))
+    axc = plt.subplot2grid((4,4),(0,2))
+    axd = plt.subplot2grid((4,4),(0,3))
+    axe = plt.subplot2grid((4,4),(1,0))
+    axf = plt.subplot2grid((4,4),(1,1))
+    axg = plt.subplot2grid((4,4),(1,2))
+    axh = plt.subplot2grid((4,4),(1,3))
+    axi = plt.subplot2grid((4,4),(2,0))
+    axj = plt.subplot2grid((4,4),(2,1))
+    axk = plt.subplot2grid((4,4),(2,2))
+    axl = plt.subplot2grid((4,4),(2,3))
+    axm = plt.subplot2grid((4,4),(3,0))
+    axn = plt.subplot2grid((4,4),(3,1))
+    axo = plt.subplot2grid((4,4),(3,2))
+    color_ld = '#a6cee3'
+    color_hd = '#1f78b4'
+    color_nr = '#b2df8a'
+    color_fc = '#33a02c'
+    color_ma = '#fb9a99'
+    color_lo = '#e31a1c'
+    color_ac = '#fdbf6f'
+    axes = [axa, axb, axc, axd, axe, axf, axg, axh, axi, axj, axk, axl,
+        axm, axn, axo]
+    citynames = ['New York', 'Los Angeles', 'Chicago', 'Dallas', 'Houston', 
+        'Washington', 'Miami', 'Philadelphia', 'Atlanta', 'Phoenix', 
+        'Boston', 'San Francisco', 'Riverside', 'Detroit', 'Seattle']  
+    letters = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)', '(g)', '(h)',
+        '(i)', '(j)', '(k)', '(l)', '(m)', '(n)', '(o)']
+    i = 0
+    for city in [newyork, losangeles, chicago, dallas, houston, washington,
+        miami, philadelphia, atlanta, phoenix, boston, sanfrancisco, 
+        riverside, detroit, seattle]:
+        # Select MSA and sum over individual counties in city
+        nei_city = nei.loc[nei['fips code'].isin(city)]
+        nei_city = nei_city.groupby(['sector']).sum()
+        # Find fractions 
+        nei_city['total emissions'] = (nei_city['total emissions']/
+            nei_city['total emissions'].sum()).copy()
+        nei_city = nei_city.sort_values(by='total emissions', axis=0, 
+            ascending=False).reset_index()
+        # Mobile - On-Road non-Diesel Light Duty Vehicles
+        ld = nei_city.loc[nei_city['sector']==
+            'Mobile - On-Road non-Diesel Light Duty Vehicles']['total emissions'
+            ].values[0]
+        # Mobile - On-Road Diesel Heavy Duty Vehicles
+        hd = nei_city.loc[nei_city['sector']==
+            'Mobile - On-Road Diesel Heavy Duty Vehicles']['total emissions'
+            ].values[0]
+        # Mobile - Non-Road Equipment - Diesel
+        nr = nei_city.loc[nei_city['sector']==
+            'Mobile - Non-Road Equipment - Diesel']['total emissions'
+            ].values[0]
+        # Fuel Comb
+        fc = nei_city.loc[nei_city['sector'].str.startswith('Fuel Comb', 
+            na=False)]['total emissions'].sum()
+        # Mobile - Commercial Marine Vessels
+        try: 
+            ma = nei_city.loc[nei_city['sector']==
+                'Mobile - Commercial Marine Vessels']['total emissions'
+                ].values[0] 
+        except IndexError:
+            ma = 0.
+        # Mobile - Locomotives
+        lo = nei_city.loc[nei_city['sector']=='Mobile - Locomotives'][
+            'total emissions'].values[0]
+        # Mobile - Aircraft
+        ac = nei_city.loc[nei_city['sector']=='Mobile - Aircraft'][
+            'total emissions'].values[0]    
+        ax = axes[i]
+        ax.bar(0.00, ld, color=color_ld, width = 0.25)
+        ax.bar(0.25, hd, color=color_hd, width = 0.25)
+        ax.bar(0.50, nr, color=color_nr, width = 0.25)
+        ax.bar(0.75, fc, color=color_fc, width = 0.25)
+        ax.bar(1.00, ma, color=color_ma, width = 0.25)
+        ax.bar(1.25, lo, color=color_lo, width = 0.25)
+        ax.bar(1.50, ac, color=color_ac, width = 0.25)
+        ax.set_title(letters[i]+' '+citynames[i], loc='left', y=1.03)
+        ax.set_xlim([-0.25,1.75])
+        ax.set_xticks([])
+        ax.set_xticklabels([])
+        ax.set_ylim([0,0.4])
+        ax.set_yticks([0,0.1,0.2,0.3,0.4])
+        ax.set_yticklabels([])
+        # Remove right and top spines
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.get_xaxis().tick_bottom()
+        ax.get_yaxis().tick_left()    
+        i = i+1
+    for ax in [axa, axe, axi, axm]:    
+        ax.set_yticklabels(['0','','20','','40'])
+        ax.set_ylabel('Contribution [%]', fontsize=12)
+    # Add legend
+    patch_ld = mpatches.Patch(color=color_ld, label='Light duty non-diesel')
+    patch_hd = mpatches.Patch(color=color_hd, label='Heavy duty diesel')
+    patch_nr = mpatches.Patch(color=color_nr, label='Non-road diesel')
+    patch_fc = mpatches.Patch(color=color_fc, label='Ind., res., and comm.')
+    patch_ma = mpatches.Patch(color=color_ma, label='Commercial marine')
+    patch_lo = mpatches.Patch(color=color_lo, label='Rail')
+    patch_ac = mpatches.Patch(color=color_ac, label='Aviation')
+    plt.legend(handles=[patch_ld, patch_hd, patch_nr, patch_fc, patch_ma, 
+        patch_lo, patch_ac], bbox_to_anchor=(1.15, 1.2), ncol=1,
+        frameon=False)
+    plt.subplots_adjust(top=0.92, right=0.93, left=0.08, bottom=0.06, 
+        hspace=0.35)
+    plt.savefig(DIR_FIGS+'figS7_revised.pdf', dpi=1000)
+    return
+
+def figS8():
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    import matplotlib.patches as mpatches
+    nei = DIR+'data/emissions/2017neiJan_county_tribe_allsector/'+\
+        'esg_cty_sector_15468.csv'
+    nei = pd.read_csv(nei, delimiter=',', engine='python')
+    nei = nei.loc[nei['pollutant code']=='NOX']
+    # Urban-rural lookup
+    rural_lookup = pd.read_csv(DIR_HARM+'County_Rural_Lookup.csv', 
+        delimiter=',', header=0, engine='python')
+    # Designate counties that have a rural population < 5% as urbans
+    urbancounties = rural_lookup[rural_lookup
+        ['2010 Census \nPercent Rural'] < 5.]
+    # Transform 2015 GEOID column so the length matches the GEOIDs in 
+    # harmonized data
+    urbancounties = [(str(x).zfill(5)) for x in urbancounties['2015 GEOID']]
+    # Find tracts considered urban
+    urbantracts = []
+    for x in np.arange(0, len(nei), 1):    
+        GEOID_statecountyonly = str(nei['fips code'].values[x])
+        if GEOID_statecountyonly in urbancounties:
+            urbantracts.append(nei['fips code'].iloc[x])
+    # Main NOx emitters for urban areas
+    nei_urban = nei.loc[nei['fips code'].isin(urbantracts)]
+    nei_urban = nei_urban.groupby(['sector']).sum()
+    # Find fractions 
+    nei_urban['total emissions'] = (nei_urban['total emissions']/
+        nei_urban['total emissions'].sum()).copy()
+    nei_urban = nei_urban.sort_values(by='total emissions', axis=0, 
+        ascending=False).reset_index()
+    # Mobile - On-Road non-Diesel Light Duty Vehicles
+    ld = nei_urban.loc[nei_urban['sector']==
+        'Mobile - On-Road non-Diesel Light Duty Vehicles']['total emissions'
+        ].values[0]
+    # Mobile - On-Road Diesel Heavy Duty Vehicles
+    hd = nei_urban.loc[nei_urban['sector']==
+        'Mobile - On-Road Diesel Heavy Duty Vehicles']['total emissions'
+        ].values[0]
+    # Mobile - Non-Road Equipment - Diesel
+    nr = nei_urban.loc[nei_urban['sector']==
+        'Mobile - Non-Road Equipment - Diesel']['total emissions'
+        ].values[0]
+    # Fuel Comb
+    fc = nei_urban.loc[nei_urban['sector'].str.startswith('Fuel Comb', 
+        na=False)]['total emissions'].sum()
+    # Mobile - Commercial Marine Vessels
+    ma = nei_urban.loc[nei_urban['sector']==
+        'Mobile - Commercial Marine Vessels']['total emissions'
+        ].values[0] 
+    # Mobile - Locomotives
+    lo = nei_urban.loc[nei_urban['sector']=='Mobile - Locomotives'][
+        'total emissions'].values[0]
+    # Mobile - Aircraft
+    ac = nei_urban.loc[nei_urban['sector']=='Mobile - Aircraft'][
+        'total emissions'].values[0]
+    # Rail and aviation changes
+    # https://www.bts.gov/covid-19/week-in-transportation#aviation
+    # Units of daily total flights
+    plane = pd.read_csv('/Users/ghkerr/GW/data/mobility/'+
+        'US_Commercial_Flights__TOTAL_data.csv', sep='\t', encoding='utf-16')
+    plane['Week of Date'] = [datetime.strptime(s, '%B %d, %Y') for s in 
+        plane['Week of Date']]
+    plane.set_index('Week of Date', inplace=True)
+    plane = plane.loc['2020-03-01':'2020-07-30']
+    plane = plane.loc[plane['Measure Names']=='Last Year']
+    # Values relative to the first week of March 
+    plane['frac_change'] = plane['Current']/plane['Current'].values[0]
+    # Rail data (https://ycharts.com/indicators/us_carloads_weekly_rail_traffic) 
+    rail = pd.DataFrame([['February 15, 2020', 227447.0],
+        ['February 22, 2020', 232869.0],
+        ['February 29, 2020', 234652.0],
+        ['March 07, 2020', 229742.0],
+        ['March 14, 2020', 226039.0],
+        ['March 21, 2020', 224048.0],
+        ['March 28, 2020', 219844.0],
+        ['April 04, 2020', 210911.0],
+        ['April 11, 2020', 198726.0],
+        ['April 18, 2020', 189598.0],
+        ['April 25, 2020', 192110.0],
+        ['May 02, 2020', 189190.0],
+        ['May 09, 2020', 185144.0],
+        ['May 16, 2020', 184415.0],
+        ['May 23, 2020', 190639.0],
+        ['May 30, 2020', 179973.0],
+        ['June 06, 2020', 192494.0],
+        ['June 13, 2020', 198437.0],
+        ['June 20, 2020', 201823.0],
+        ['June 27, 2020', 201502.0],
+        ['July 04, 2020', 192767.0],
+        ['July 11, 2020', 201703.0],
+        ['July 18, 2020', 214685.0],
+        ['July 25, 2020', 215171.0]], columns=['Date','Activity'])
+    rail['Date'] = [datetime.strptime(s, '%B %d, %Y') for s in rail['Date']]
+    rail.set_index('Date', inplace=True)
+    rail = rail.loc['2020-02-29':'2020-07-01']
+    # Values relative to the first week of March 
+    rail['frac_change'] = rail['Activity']/rail['Activity'].values[0]
+    # Traffic (click "Show as table" and transcribe)
+    # https://app.powerbi.com/view?r=eyJrIjoiZmQzZDhmZTctMDNjYS00NGNmLWJ
+    # lNzctZTE5NzRlYTk5NGNjIiwidCI6IjZhZDJlNGRhLThjOTItNGU1OC04ODc3LWVkM
+    # DZiODkxODM3OSIsImMiOjZ9
+    # Units of normalized trip count
+    traffic = pd.read_csv('/Users/ghkerr/GW/data/mobility/'+
+        'bts_transport_change.csv', sep=',', engine='python')
+    traffic['Date'] = pd.to_datetime(traffic['Date'])
+    traffic.set_index('Date', inplace=True)
+    traffic_wkly = traffic.resample('7D').mean()
+    # Industrial emissions (go to "Query" at https://ampd.epa.gov/ampd/ and 
+    # select "All Programs" and "Emissions" then "Daily" for the desired date
+    # range and then all states besides Hawaii and Alaska and then 
+    # "National" for the aggregation.)
+    # Units of tons
+    cems = pd.read_csv('/Users/ghkerr/GW/data/cems/2020_dailyavg/'+
+        'emission_02-15-2021_191910233.csv', sep=',', engine='python')
+    cems.index = pd.to_datetime(cems.index)
+    cems.sort_index(inplace=True)
+    # Select 2020 data
+    cems_2020 = cems.loc['2020-03-01':'2020-07-30']
+    cems_2020['frac_change'] = cems_2020[' Year']/cems_2020[' Year'].values[0]
+    cems_wkly = cems_2020.resample('7D').mean()
+    # Port calls (for Canada, Mexico, and the U.S.) from https://
+    # public.tableau.com/profile/uncomtrade#!/vizhome/AISPortCalls2/AISMonitor
+    # (Zoom in to the timeseries and then select all points, right click on 
+    # graph, and click on the table icon)
+    port = pd.read_csv('/Users/ghkerr/GW/data/mobility/'+
+        'Global__Regional_Port_Calls_Full_Data_data.csv', sep='\t', 
+        encoding='utf-16')
+    # Select port calls in Northern America
+    port = port.loc[(port['Sub-region Name']=='Northern America')]
+    port['Date'] = [datetime.strptime(s, '%B %d, %Y') for s in 
+        port['Day of Date-Entry']]
+    port = port.groupby(['Date']).sum()
+    port = port[['Port Calls']]
+    port = port.loc['2020-03-01':'2020-07-30']
+    port_wkly = port.resample('7D').mean()
+    port_wkly['frac_change'] = port_wkly['Port Calls']/port_wkly['Port Calls'].values[0]
+    fig = plt.figure(figsize=(9,5))
+    axb = plt.subplot2grid((1,1),(0,0))
+    # Define colors 
+    color_ld = '#33a02c'
+    color_hd = '#1f78b4'
+    color_nr = '#b2df8a'
+    color_fc = '#a6cee3'
+    color_ma = '#fb9a99'
+    color_lo = '#e31a1c'
+    color_ac = '#fdbf6f'
+    # Plot nationally-averaged values
+    axb.plot(traffic_wkly['Long-Haul Trucks']*hd, ls='-', lw=2, color=color_hd)
+    axb.plot(traffic_wkly['Passenger']*ld, ls='-', lw=2, color=color_ld)
+    axb.plot(plane['frac_change']*ac, ls='-', lw=2, color=color_ac)
+    axb.plot(cems_wkly['frac_change']*fc, ls='-', lw=2, color=color_fc)
+    axb.plot(rail['frac_change']*lo, ls='-', lw=2, color=color_lo)
+    axb.plot(port_wkly['frac_change']*ma, ls='-', lw=2, color=color_ma)
+    axb.set_xlim(['2020-03-01','2020-06-13'])
+    axb.set_ylim([0,0.32])
+    axb.set_yticks(np.linspace(0,0.32,5))
+    axb.set_yticklabels(['0','8','16','24','32'])
+    axb.set_ylabel(r'Fractional change $\mathregular{\times}$ Contribution [%]')
+    # Add legend
+    patch_ld = mpatches.Patch(color=color_ld, label='Light duty non-diesel')
+    patch_hd = mpatches.Patch(color=color_hd, label='Heavy duty diesel')
+    patch_fc = mpatches.Patch(color=color_fc, label='Ind., res., and comm.')
+    patch_ma = mpatches.Patch(color=color_ma, label='Commercial Marine')
+    patch_lo = mpatches.Patch(color=color_lo, label='Rail')
+    patch_ac = mpatches.Patch(color=color_ac, label='Aviation')
+    plt.subplots_adjust(top=0.95, right=0.98, left=0.08, bottom=0.18, hspace=0.7)
+    plt.legend(handles=[patch_ld, patch_hd, patch_fc, patch_ma, 
+        patch_lo, patch_ac], bbox_to_anchor=(0.62, 0.85), ncol=3,
+        frameon=False)
+    plt.savefig(DIR_FIGS+'figS8_revised.pdf', dpi=1000)
     return 
 
-def figS5(harmonized_urban):
+def figS9(harmonized_urban):
     """
     """
     import numpy as np
@@ -3211,11 +4078,12 @@ def figS5(harmonized_urban):
     ax6.annotate('May 1, 2018 -\nDecember 31, 2019', ha='right', xy=(86,0.))
     ax6.axis('off')
     plt.subplots_adjust(hspace=0.4, top=0.95, bottom=0.05)
-    plt.savefig(DIR_FIGS+'figS5_revised.pdf', dpi=1000)
+    plt.savefig(DIR_FIGS+'figS9_revised.pdf', dpi=1000)
     return
 
-def figS6(harmonized):
-    """xxx"""
+def figS10(harmonized):
+    """
+    """
     import numpy as np
     from scipy.stats import ks_2samp
     from mpl_toolkits.axes_grid.inset_locator import inset_axes
@@ -3314,47 +4182,53 @@ def figS6(harmonized):
         ia.set_yticklabels(['0.0','0.5','1.0'])
         ia.set_ylabel('Cumulative\nprobability')
     plt.subplots_adjust(hspace=0.33, top=0.95, bottom=0.1)
-    plt.savefig(DIR_FIGS+'figS6_revised.pdf', dpi=1000)
+    plt.savefig(DIR_FIGS+'figS10_revised.pdf', dpi=1000)
     plt.show()
     return 
     
-import numpy as np
-import sys
-sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
-import tropomi_census_utils
-import netCDF4 as nc
-# 13 March - 13 June 2019 and 2020 average NO2
-no2_pre_dg = nc.Dataset(DIR_TROPOMI+
-    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
-no2_pre_dg = no2_pre_dg['NO2'][:]
-no2_post_dg = nc.Dataset(DIR_TROPOMI+
-    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
-no2_post_dg = no2_post_dg['NO2'][:].data
-lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
-lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
-FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
-        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
-        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
-        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
-        '51', '53', '54', '55', '56']
-harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
-# # Add vehicle ownership/road density data
-harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
-# Split into rural and urban tracts
-harmonized_urban, harmonized_rural = \
-    tropomi_census_utils.split_harmonized_byruralurban(harmonized)
+# import numpy as np
+# import sys
+# sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
+# import tropomi_census_utils
+# import netCDF4 as nc
+# # 13 March - 13 June 2019 and 2020 average NO2
+# no2_pre_dg = nc.Dataset(DIR_TROPOMI+
+#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
+# no2_pre_dg = no2_pre_dg['NO2'][:]
+# no2_post_dg = nc.Dataset(DIR_TROPOMI+
+#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
+# no2_post_dg = no2_post_dg['NO2'][:].data
+# lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
+# lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
+# FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+#         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+#         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+#         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+#         '51', '53', '54', '55', '56']
+# harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
+# # # Add vehicle ownership/road density data
+# harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
+# # Split into rural and urban tracts
+# harmonized_urban, harmonized_rural = \
+#     tropomi_census_utils.split_harmonized_byruralurban(harmonized)
 
-# Figures
-fig1(harmonized, harmonized_urban)
-fig2(harmonized, harmonized_rural, harmonized_urban)
-fig3(harmonized_urban)
-fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
-figS1(harmonized, harmonized_rural)
-figS2(harmonized, harmonized_urban, harmonized_rural)
-figS3(harmonized, harmonized_rural, harmonized_urban)
-figS4()
-figS5(harmonized_urban)
-figS6(harmonized)
+# Main figures
+# fig1(harmonized, harmonized_urban)
+# fig2(harmonized, harmonized_rural, harmonized_urban)
+# fig3(harmonized_urban)
+# fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
+
+# Supplementary figures
+# figS1()
+# figS2(FIPS)
+# figS3(harmonized, harmonized_rural)
+# figS4(harmonized, harmonized_urban, harmonized_rural)
+# figS5(harmonized, harmonized_rural, harmonized_urban)
+# figS6(harmonized_urban)
+# figS7()
+# figS8()
+# figS9(harmonized_urban)
+# figS10(harmonized)
 
 # # Figure for Dan's paper
 # import netCDF4 as nc
@@ -3562,71 +4436,6 @@ figS6(harmonized)
 # plt.subplots_adjust(right=0.96, top=0.92, bottom=0.15)
 # plt.savefig('/Users/ghkerr/Desktop/dan_figuresubplot_revised.eps', dpi=1000)
 
-"""COMPARE COOPER ET AL. (2020) NO2 TO AQS"""
-# import cartopy.crs as ccrs
-# import cartopy.feature as cfeature
-# import cartopy.io.shapereader as shpreader
-# fig = plt.figure(figsize=(4.5,7))
-# ax1 = plt.subplot2grid((2,1),(0,0))
-# ax2 = plt.subplot2grid((2,1),(1,0), 
-#     projection=ccrs.PlateCarree(central_longitude=0.0))
-# # # # # Scatter
-# ax1.plot(aqs_onroad['CooperNO2_2019'].values, 
-#     aqs_onroad['Sample Measurement'].values, 'o', markersize=3, 
-#     label='Near-road', color='lightgrey')
-# ax1.plot(aqs_other['CooperNO2_2019'].values, 
-#     aqs_other['Sample Measurement'].values, 'ko', markersize=4, 
-#     label='Not near-road')
-# ax1.set_xlabel('Cooper et al. (2020) NO$_{\mathregular{2}}$ [ppbv]', 
-#     fontsize=14, fontproperties = font)
-# ax1.set_ylabel('AQS NO$_\mathregular{2}$* [ppbv]', fontsize=14, 
-#     fontproperties=font)
-# ax1.set_xlim([0,30])
-# ax1.set_ylim([0,30])
-# ax1.set_yticks([0,5,10,15,20,25])
-# ax1.set_yticklabels(['0','5','10','15','20','25'], fontproperties=font)
-# ax1.set_yticks([0,5,10,15,20,25])
-# ax1.set_yticklabels(['0','5','10','15','20','25'], fontproperties=font)
-# plt.setp(ax1.get_xticklabels(), fontproperties=font, fontsize=14)
-# plt.setp(ax1.get_yticklabels(), fontproperties=font, fontsize=14)
-# # Calculate linear fit
-# mask = (~np.isnan(aqs_other['Sample Measurement'].values) & 
-#     ~np.isnan(aqs_other['CooperNO2_2019'].values))
-# coeff = np.polyfit(aqs_other['CooperNO2_2019'].values[mask], 
-#     aqs_other['Sample Measurement'].values[mask], 1)
-# poly1d_fn = np.poly1d(coeff)
-# # poly1d_fn is now a function which takes in x and returns an estimate for y
-# ax1.plot(np.sort(aqs_other['CooperNO2_2019'].values[mask]),
-#     poly1d_fn(np.sort(aqs_other['CooperNO2_2019'].values[mask])), ls='-', 
-#     color='crimson', label='m = 0.56, b = 1.95')
-# # Calculate R-squared value
-# r2 = np.corrcoef(aqs_other['Sample Measurement'].values[mask],
-#     coeff[0]+(coeff[1]*aqs_other['CooperNO2_2019'].values[mask]))**2
-# tit = ax1.set_title('R$^\mathregular{2}$ = 0.63', loc='right', 
-#     fontproperties=font)
-# tit.set_fontsize(12)
-# leg = ax1.legend(fontsize=12, ncol=1, frameon=True, loc=1, labelspacing=0.08, 
-#     prop=font)
-# # # # # Map of bias
-# mb = ax2.scatter(aqs_other['Longitude'].values, aqs_other['Latitude'].values, 
-#     c=(aqs_other['CooperNO2_2019']-aqs_other['Sample Measurement']).values,
-#     vmin=-2, vmax=2, cmap=plt.get_cmap('bwr'), s=6)
-# cbar = fig.colorbar(mb, orientation='horizontal', extend='both',
-#     label='NO$_{\mathregular{2, Cooper}}$ - NO$_\mathregular{2, AQS}$*')
-# ax = cbar.ax
-# plt.setp(ax.get_xticklabels(), fontproperties=font, fontsize=14)
-# text = ax.xaxis.label
-# text.set_font_properties(font)
-# ax2.set_extent([-125, -66.5, 24, 47], ccrs.Geodetic())
-# shapename = 'admin_1_states_provinces_lakes_shp'
-# states_shp = shpreader.natural_earth(resolution='110m', category='cultural',
-#     name=shapename)    
-# for astate in shpreader.Reader(states_shp).records():
-#     ax2.add_geometries([astate.geometry], ccrs.PlateCarree(),
-#         facecolor='None', edgecolor='k', zorder=0)
-# ax2.set_frame_on(False)
-# plt.savefig('/Users/ghkerr/Desktop/cooper_aqs_comparison.png', dpi=500)
-
 """DAN MAPS OF MOST/LEAST WHITE TRACTS IN NYC, LA, AND DC"""
 # import matplotlib
 # import matplotlib.pyplot as plt
@@ -3773,4 +4582,3 @@ figS6(harmonized)
 # for ax in [ax1, ax2, ax3]:
 #     ax.add_feature(shape_feature)
 # plt.savefig('/Users/ghkerr/Desktop/MSA_maps_fordan.png', dpi=300)
-

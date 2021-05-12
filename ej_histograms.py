@@ -1548,37 +1548,15 @@ def fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg):
     # Initialize figure, axes
     fig = plt.figure(figsize=(12,9))
     proj = ccrs.PlateCarree(central_longitude=0.0)
-    ax1 = plt.subplot2grid((3,3),(0,0), projection=ccrs.PlateCarree(
+    ax1 = plt.subplot2grid((1,2),(0,0), projection=ccrs.PlateCarree(
         central_longitude=0.))
-    ax2 = plt.subplot2grid((3,3),(0,1), projection=ccrs.PlateCarree(
+    ax2 = plt.subplot2grid((1,2),(0,1), projection=ccrs.PlateCarree(
         central_longitude=0.))
-    ax3 = plt.subplot2grid((3,3),(0,2), projection=ccrs.PlateCarree(
-        central_longitude=0.))
-    ax4 = plt.subplot2grid((3,3),(1,0), projection=ccrs.PlateCarree(
-        central_longitude=0.))
-    ax5 = plt.subplot2grid((3,3),(1,1), projection=ccrs.PlateCarree(
-        central_longitude=0.))
-    ax6 = plt.subplot2grid((3,3),(1,2), projection=ccrs.PlateCarree(
-        central_longitude=0.))
-    ax7 = plt.subplot2grid((3,3),(2,0), projection=ccrs.PlateCarree(
-        central_longitude=0.))
-    ax8 = plt.subplot2grid((3,3),(2,1), projection=ccrs.PlateCarree(
-        central_longitude=0.))
-    ax9 = plt.subplot2grid((3,3),(2,2), projection=ccrs.PlateCarree(
-        central_longitude=0.))
-    axes = [ax1, ax4 , ax7, ax2, ax5, ax8, ax3, ax6, ax9]
-    fips = [['36','34'], ['13'], ['26']] # NY, GA, MI
-    extents = [[-74.05, -73.8, 40.68, 40.9], # New York City
-        [-84.54, -84.2, 33.6, 33.95], # Atlanta
-        [-83.35,-82.87,42.2,42.5]] # Detroit
-    citycodes = [['36047','36081','36061','36005','36085','36119', '34003', 
+    fips = ['36','34']
+    extents = [-74.05, -73.8, 40.68, 40.9]
+    citycodes = ['36047','36081','36061','36005','36085','36119', '34003', 
         '34017','34031','36079','36087','36103','36059','34023','34025',
-        '34029','34035','34013','34039','34027','34037'	,'34019'],
-        # New York-Newark-Jersey City, NY-NJ-PA MSA
-        ['13121','13135','13067','13089','13063','13057','13117', '13151'],
-        # Atlanta-Sandy Springs-Alpharetta, GA MSA             
-        ['26163','26125','26099','26093','26147','26087']]    
-        # Detroit-Warren-Dearborn, MI MSA
+        '34029','34035','34013','34039','34027','34037'	,'34019']
     ticks = [np.linspace(-1.5e15,1.5e15,5),
         np.linspace(-0.6e15,0.6e15,5),
         np.linspace(-0.5e15,0.5e15,5)]
@@ -4008,11 +3986,11 @@ def figS9(harmonized_urban):
         bpl = ax.boxplot([left['ALLNO2_x'].values[~np.isnan(left['ALLNO2_x'].values)], 
             left['PRENO2APR_x'].values[~np.isnan(left['PRENO2APR_x'].values)],
             left['PRENO2_x'][~np.isnan(left['PRENO2_x'])]], positions=[1,2,3],
-            whis=[10,90], showfliers=False, patch_artist=True, showcaps=False)
+            whis=[20,80], showfliers=False, patch_artist=True, showcaps=False)
         bpr = ax.boxplot([right['ALLNO2_x'].values[~np.isnan(right['ALLNO2_x'].values)], 
             right['PRENO2APR_x'].values[~np.isnan(right['PRENO2APR_x'].values)],
             right['PRENO2_x'][~np.isnan(right['PRENO2_x'])]], positions=[5,6,7],
-            whis=[10,90], showfliers=False, patch_artist=True, showcaps=False)    
+            whis=[20,80], showfliers=False, patch_artist=True, showcaps=False)    
         for bp in [bpl, bpr]:
             for element in ['boxes']:
                 plt.setp(bp[element][0], color='#0095A8')
@@ -4081,7 +4059,192 @@ def figS9(harmonized_urban):
     plt.savefig(DIR_FIGS+'figS9_revised.pdf', dpi=1000)
     return
 
-def figS10(harmonized):
+def figS10(FIPS, harmonized_urban, harmonized_rural):
+    """    
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from cartopy.io import shapereader
+    # New York-Newark-Jersey City, NY-NJ-PA MSA
+    newyork = ['36047','36081','36061','36005','36085','36119','34003',
+        '34017','34031','36079','36087','36103','36059','34023','34025',
+        '34029','34035','34013','34039','34027','34037'	,'34019','42103']
+    # Los Angeles-Long Beach-Anaheim, CA MSA
+    losangeles = ['06037','06059']
+    # Chicago-Naperville-Elgin, IL-IN-WI MSA
+    chicago = ['17031','17037','17043','17063','17091','17089','17093',
+        '17111','17197','18073','18089','18111','18127','17097','55059']
+    # Dallas-Fort Worth-Arlington, TX MSA
+    dallas = ['48085','48113','48121','48139','48231','48257','48397',
+        '48251','48367','48439','48497']
+    # Houston-The Woodlands-Sugar Land, TX MSA
+    houston = ['48201','48157','48339','48039','48167','48291','48473',
+        '48071','48015']
+    # Washington-Arlington-Alexandria, DC-VA-MD-WV MSA
+    washington = ['11001','24009','24017','24021','24031','24033','51510',
+        '51013','51043','51047','51059','51600','51610','51061','51630',
+        '51107','51683','51685','51153','51157','51177','51179','51187']
+    # Miami-Fort Lauderdale-Pompano Beach, FL MSA	
+    miami = ['12086','12011','12099']
+    # Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA
+    philadelphia = ['34005','34007','34015','42017','42029','42091','42045',
+        '42101','10003','24015','34033']
+    # Atlanta-Sandy Springs-Alpharetta, GA MSA
+    atlanta = ['13121','13135','13067','13089','13063','13057','13117',
+        '13151','13223','13077','13097','13045','13113','13217','13015',
+        '13297','13247','13013','13255','13227','13143','13085','13035',
+        '13199','13171','13211','13231','13159','13149']
+    # Phoenix-Mesa-Chandler, AZ MSA
+    phoenix = ['04013','04021','04007']
+    # Boston-Cambridge-Newton, MA-NH MSA
+    boston = ['25021','25023','25025','25009','25017','33015','33017']
+    # San Francisco-Oakland-Berkeley, CA MSA
+    sanfrancisco = ['06001','06013','06075','06081','06041']
+    # Riverside-San Bernardino-Ontario, CA MSA
+    riverside = ['06065','06071']
+    # Detroit-Warren-Dearborn, MI MSA
+    detroit = ['26163','26125','26099','26093','26147','26087']
+    # Seattle-Tacoma-Bellevue, WA MSA
+    seattle = ['53033','53061','53053']
+    geoids = []
+    areas = []
+    areas_urban = []
+    areas_rural = []
+    areas_newyork = []
+    areas_losangeles = []
+    areas_chicago = []
+    areas_dallas = []
+    areas_houston = []
+    areas_washington = []
+    areas_miami = []
+    areas_philadelphia = []
+    areas_atlanta = []
+    areas_phoenix = []
+    areas_boston = []
+    areas_sanfrancisco = []
+    areas_riverside = []
+    areas_detroit = []
+    areas_seattle = []
+    for FIPS_i in FIPS: 
+        print(FIPS_i)
+        # Tigerline shapefile for state
+        shp = shapereader.Reader(DIR_GEO+
+            'tigerline/tl_2019_%s_tract/tl_2019_%s_tract.shp'%(FIPS_i, FIPS_i))
+        records = shp.records()
+        tracts = shp.geometries()
+        tracts = list(tracts)
+        records = list(records)
+        for r in records:
+            # Add ALAND and AWATER
+            areas.append(r.attributes['ALAND']+r.attributes['AWATER'])
+            geoids.append(r.attributes['GEOID'])
+            if r.attributes['GEOID'] in harmonized_urban.index:
+                areas_urban.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'] in harmonized_rural.index:            
+                areas_rural.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in newyork:
+                areas_newyork.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])            
+            if r.attributes['GEOID'][:5] in losangeles:          
+                areas_losangeles.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in chicago:          
+                areas_chicago.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in dallas:          
+                areas_dallas.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in houston:          
+                areas_houston.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in washington:          
+                areas_washington.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in miami:          
+                areas_miami.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in philadelphia:          
+                areas_philadelphia.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in atlanta:          
+                areas_atlanta.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in phoenix:          
+                areas_phoenix.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in boston:          
+                areas_boston.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])
+            if r.attributes['GEOID'][:5] in sanfrancisco:          
+                areas_sanfrancisco.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])            
+            if r.attributes['GEOID'][:5] in riverside:          
+                areas_riverside.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])            
+            if r.attributes['GEOID'][:5] in detroit:          
+                areas_detroit.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])            
+            if r.attributes['GEOID'][:5] in seattle:          
+                areas_seattle.append(r.attributes['ALAND']+
+                    r.attributes['AWATER'])            
+    fig = plt.figure(figsize=(5,7))
+    axr = plt.subplot2grid((18,1), (0,0), rowspan=3)
+    ax = plt.subplot2grid((18,1), (3,0), rowspan=15)
+    scaler = 1000*1000.
+    areas_allr = [np.array(areas)/scaler, 
+        np.array(areas_rural)/scaler]
+    areas_all = [np.array(areas_urban)/scaler, 
+        np.array(areas_newyork)/scaler, 
+        np.array(areas_losangeles)/scaler,
+        np.array(areas_chicago)/scaler, 
+        np.array(areas_dallas)/scaler, 
+        np.array(areas_houston)/scaler, 
+        np.array(areas_washington)/scaler, 
+        np.array(areas_miami)/scaler, 
+        np.array(areas_philadelphia)/scaler, 
+        np.array(areas_atlanta)/scaler, 
+        np.array(areas_phoenix)/scaler, 
+        np.array(areas_boston)/scaler, 
+        np.array(areas_sanfrancisco)/scaler, 
+        np.array(areas_riverside)/scaler, 
+        np.array(areas_detroit)/scaler, 
+        np.array(areas_seattle)/scaler]
+    axr.boxplot(areas_allr, showfliers=False, vert=0, whis=[20, 80], 
+        patch_artist=True, boxprops=dict(facecolor='w', color='k'), 
+        medianprops=dict(color='k'), widths=(0.45), zorder=10)            
+    ax.boxplot(areas_all, showfliers=False, vert=0, whis=[20, 80], 
+        patch_artist=True, boxprops=dict(facecolor='w', color='k'), 
+        medianprops=dict(color='k'), zorder=10)
+    citynames = [r'$\bf{All}$', r'$\bf{Rural}$', r'$\bf{Urban}$',
+        'New York', 'Los Angeles', 'Chicago', 'Dallas', 'Houston', 
+        'Washington', 'Miami', 'Philadelphia', 'Atlanta', 'Phoenix', 
+        'Boston', 'San Francisco', 'Riverside', 'Detroit', 'Seattle']   
+    axr.set_ylim([0.3,2.6])
+    axr.set_yticks(np.arange(1,3,1))
+    axr.set_yticklabels(citynames[:2])
+    ax.set_yticks(np.arange(1,17,1))
+    ax.set_yticklabels(citynames[2:])
+    for axi in [axr, ax]:
+        axi.axvline(x=1, lw=1, ls='--', color='k')
+        axi.invert_yaxis()
+        axi.tick_params(axis='y', left=False, length=0)
+        axi.tick_params(axis='x', colors='darkgrey')
+        for side in ['right', 'left', 'top', 'bottom']:
+            axi.spines[side].set_visible(False)
+        axi.grid(axis='x', zorder=2, color='darkgrey')    
+    # X axis limits    
+    axr.set_xlim([-1,201])
+    axr.set_xticks(np.linspace(0,200,6))
+    ax.set_xlim([-.1,25.1])
+    ax.set_xticks(np.linspace(0,25,6))
+    ax.set_xlabel('Tract area [km$^{2}$]', x=0.2, color='darkgrey')
+    plt.subplots_adjust(top=0.95, bottom=0.1, left=0.2, hspace=6.)
+    plt.savefig(DIR_FIGS+'figS10_revised.pdf', dpi=1000)
+    return
+
+def figS11(harmonized):
     """
     """
     import numpy as np
@@ -4182,53 +4345,54 @@ def figS10(harmonized):
         ia.set_yticklabels(['0.0','0.5','1.0'])
         ia.set_ylabel('Cumulative\nprobability')
     plt.subplots_adjust(hspace=0.33, top=0.95, bottom=0.1)
-    plt.savefig(DIR_FIGS+'figS10_revised.pdf', dpi=1000)
+    plt.savefig(DIR_FIGS+'figS11_revised.pdf', dpi=1000)
     plt.show()
     return 
     
-# import numpy as np
-# import sys
-# sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
-# import tropomi_census_utils
-# import netCDF4 as nc
-# # 13 March - 13 June 2019 and 2020 average NO2
-# no2_pre_dg = nc.Dataset(DIR_TROPOMI+
-#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
-# no2_pre_dg = no2_pre_dg['NO2'][:]
-# no2_post_dg = nc.Dataset(DIR_TROPOMI+
-#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
-# no2_post_dg = no2_post_dg['NO2'][:].data
-# lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
-# lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
-# FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
-#         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
-#         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
-#         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
-#         '51', '53', '54', '55', '56']
-# harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
-# # # Add vehicle ownership/road density data
-# harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
-# # Split into rural and urban tracts
-# harmonized_urban, harmonized_rural = \
-#     tropomi_census_utils.split_harmonized_byruralurban(harmonized)
+import numpy as np
+import sys
+sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
+import tropomi_census_utils
+import netCDF4 as nc
+# 13 March - 13 June 2019 and 2020 average NO2
+no2_pre_dg = nc.Dataset(DIR_TROPOMI+
+    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
+no2_pre_dg = no2_pre_dg['NO2'][:]
+no2_post_dg = nc.Dataset(DIR_TROPOMI+
+    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
+no2_post_dg = no2_post_dg['NO2'][:].data
+lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
+lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
+FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+        '51', '53', '54', '55', '56']
+harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
+# # Add vehicle ownership/road density data
+harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
+# Split into rural and urban tracts
+harmonized_urban, harmonized_rural = \
+    tropomi_census_utils.split_harmonized_byruralurban(harmonized)
 
 # Main figures
-# fig1(harmonized, harmonized_urban)
-# fig2(harmonized, harmonized_rural, harmonized_urban)
-# fig3(harmonized_urban)
-# fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
+fig1(harmonized, harmonized_urban)
+fig2(harmonized, harmonized_rural, harmonized_urban)
+fig3(harmonized_urban)
+fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
 
 # Supplementary figures
-# figS1()
-# figS2(FIPS)
-# figS3(harmonized, harmonized_rural)
-# figS4(harmonized, harmonized_urban, harmonized_rural)
-# figS5(harmonized, harmonized_rural, harmonized_urban)
-# figS6(harmonized_urban)
-# figS7()
-# figS8()
-# figS9(harmonized_urban)
-# figS10(harmonized)
+figS1()
+figS2(FIPS)
+figS3(harmonized, harmonized_rural)
+figS4(harmonized, harmonized_urban, harmonized_rural)
+figS5(harmonized, harmonized_rural, harmonized_urban)
+figS6(harmonized_urban)
+figS7()
+figS8()
+figS9(harmonized_urban)
+figS10(FIPS, harmonized_urban, harmonized_rural)
+figS11(harmonized)
 
 # # Figure for Dan's paper
 # import netCDF4 as nc
@@ -4582,3 +4746,227 @@ def figS10(harmonized):
 # for ax in [ax1, ax2, ax3]:
 #     ax.add_feature(shape_feature)
 # plt.savefig('/Users/ghkerr/Desktop/MSA_maps_fordan.png', dpi=300)
+
+"""BRIAN MACDONALD EMISSION INVENTORIES"""
+# import pandas as pd
+# import numpy as np
+# import matplotlib.pyplot as plt
+# emiss = pd.read_excel('/Users/ghkerr/GW/data/emissions/'+
+#     'FIVE Emission Trends (for Shobha) v4.xlsx', sheet_name='COVID',
+#     usecols='A:Q', header=2)
+# emiss.rename(columns={'NOx (t/d)':'LA Gas', 
+#     'NOx (t/d).1':'LA Diesel', 
+#     'NOx (t/d).2':'LA On-road', 
+#     'NOx (t/d).3':'SF Gas', 
+#     'NOx (t/d).4':'SF Diesel', 
+#     'NOx (t/d).5':'SF On-road', 
+#     'NOx (t/d).6':'NYC Gas', 
+#     'NOx (t/d).7':'NYC Diesel', 
+#     'NOx (t/d).8':'NYC On-road', 
+#     'NOx (t/d).9':'ATL Gas', 
+#     'NOx (t/d).10':'ATL Diesel', 
+#     'NOx (t/d).11':'ATL On-road', 
+#     'NOx (t/d).12':'SJV Gas', 
+#     'NOx (t/d).13':'SJV Diesel',    
+#     'NOx (t/d).14':'SJV On-road'}, inplace=True)
+# city = 'SJV'
+# fig = plt.figure(figsize=(9,3))
+# ax = plt.subplot2grid((1,1),(0,0))
+# ax.plot(emiss['Date'], emiss['%s Gas'%(city)], alpha=0.3, lw=0.5, 
+#     color='#1b9e77')
+# ax.plot(emiss['Date'], emiss['%s Diesel'%(city)], alpha=0.3, lw=0.5, 
+#     color='#d95f02')
+# # 7 day rolling average
+# emiss['%s Gas'%(city)] = emiss['%s Gas'%(city)].rolling(window=7).mean()
+# emiss['%s Diesel'%(city)] = emiss['%s Diesel'%(city)].rolling(window=7).mean()
+# ax.plot(emiss['Date'], emiss['%s Gas'%(city)], color='#1b9e77', label='Gas')
+# ax.plot(emiss['Date'], emiss['%s Diesel'%(city)], color='#d95f02', label='Diesel')
+# plt.legend(frameon=False)
+# ax.set_xlim([emiss['Date'].min(), emiss['Date'].max()])
+# ax.set_title(city, loc='left', fontsize=16)
+# ax.set_ylabel('NO$_{\mathregular{x}}$ [tonnes d$^{\mathregular{-1}}$]')
+# plt.savefig(DIR_FIGS+'noxemiss_gasdiesel_%s.png'%city, dpi=400)
+# plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import numpy as np
+# import pandas as pd
+# from datetime import datetime
+# import scipy.stats as st
+# import matplotlib as mpl
+# import matplotlib.pyplot as plt
+# from scipy import stats
+# import pandas as pd
+# # Read in csv file for vehicle ownership/road density
+# noxsource = pd.read_csv(DIR_HARM+'noxsourcedensity_us_v2.csv', delimiter=',', 
+#     header=0, engine='python')
+# # Leading 0 for state FIPS codes < 10 
+# noxsource['GEOID'] = noxsource['GEOID'].map(lambda x: f'{x:0>11}')
+# # Make GEOID a string and index row 
+# noxsource = noxsource.set_index('GEOID')
+# noxsource.index = noxsource.index.map(str)
+# # Make other columns floats
+# for col in noxsource.columns:
+#     noxsource[col] = noxsource[col].astype(float)
+# # Merge with harmonized census data
+# harmonized_noxsource = harmonized_urban.merge(noxsource, left_index=True, 
+#     right_index=True)
+# cems_byrace = []
+# cems_byincome = []
+# cems_byeducation = []
+# cems_byethnicity = []
+# cems_byvehicle = []
+# cemsp90_byrace, cemsp10_byrace = [], []
+# cemsp90_byincome, cemsp10_byincome = [], []
+# cemsp90_byeducation, cemsp10_byeducation = [], []
+# cemsp90_byethnicity, cemsp10_byethnicity = [], []
+# cemsp90_byvehicle, cemsp10_byvehicle = [], []
+
+# income = harmonized_noxsource['AJZAE001']
+# race = (harmonized_noxsource['AJWNE002']/harmonized_noxsource['AJWBE001'])
+# education = (harmonized_noxsource.loc[:,'AJYPE019':'AJYPE025'
+#     ].sum(axis=1)/harmonized_noxsource['AJYPE001'])
+# ethnicity = (harmonized_noxsource['AJWWE002']/harmonized_noxsource['AJWWE001'])
+# vehicle = 1-harmonized_noxsource['FracNoCar']
+# for ptilel, ptileu in zip(np.arange(0,100,10), np.arange(10,110,10)):    
+#     # By income
+#     decile_income = harmonized_noxsource.loc[(income>
+#         np.nanpercentile(income, ptilel)) & (
+#         income<=np.nanpercentile(income, ptileu))]
+#     cems_byincome.append(decile_income['CEMSwithin1'].mean()) 
+#     cemsp10_byincome.append(decile_income['CEMSwithin1_p20'].mean()) 
+#     cemsp90_byincome.append(decile_income['CEMSwithin1_p80'].mean())  
+#     # By race            
+#     decile_race = harmonized_noxsource.loc[(race>
+#         np.nanpercentile(race, ptilel)) & (
+#         race<=np.nanpercentile(race, ptileu))] 
+#     cems_byrace.append(decile_race['CEMSwithin1'].mean()) 
+#     cemsp10_byrace.append(decile_race['CEMSwithin1_p20'].mean()) 
+#     cemsp90_byrace.append(decile_race['CEMSwithin1_p80'].mean()) 
+#     # By education 
+#     decile_education = harmonized_noxsource.loc[(education>np.nanpercentile(
+#         education, ptilel)) & (education<=np.nanpercentile(education, 
+#         ptileu))]
+#     cems_byeducation.append(decile_education['CEMSwithin1'].mean())  
+#     cemsp10_byeducation.append(decile_education['CEMSwithin1_p20'].mean())   
+#     cemsp90_byeducation.append(decile_education['CEMSwithin1_p80'].mean())      
+#     # By ethnicity
+#     decile_ethnicity = harmonized_noxsource.loc[(ethnicity>
+#         np.nanpercentile(ethnicity, ptilel)) & (
+#         ethnicity<=np.nanpercentile(ethnicity, ptileu))]    
+#     cems_byethnicity.append(decile_ethnicity['CEMSwithin1'].mean())  
+#     cemsp10_byethnicity.append(decile_ethnicity['CEMSwithin1_p20'].mean())  
+#     cemsp90_byethnicity.append(decile_ethnicity['CEMSwithin1_p80'].mean())  
+#     # By vehicle ownership            
+#     decile_vehicle = harmonized_noxsource.loc[(vehicle>
+#         np.nanpercentile(vehicle, ptilel)) & (vehicle<=np.nanpercentile(
+#         vehicle, ptileu))]
+#     cems_byvehicle.append(decile_vehicle['CEMSwithin1'].mean())
+#     cemsp10_byvehicle.append(decile_vehicle['CEMSwithin1_p20'].mean())  
+#     cemsp90_byvehicle.append(decile_vehicle['CEMSwithin1_p80'].mean())  
+# fig = plt.figure(figsize=(11.5,5))
+# ax1 = plt.subplot2grid((1,2),(0,0))
+# ax2 = plt.subplot2grid((1,2),(0,1))
+# # Colors for each demographic variable
+# color1 = '#0095A8'
+# color2 = '#FF7043'
+# color3 = '#5D69B1'
+# color4 = '#CC3A8E'
+# color5 = '#4daf4a'
+# axes = [ax1, ax2]
+# curves = [[cemsp10_byrace, cemsp10_byincome, cemsp10_byeducation, 
+#       cemsp10_byethnicity, cemsp10_byvehicle], 
+#     [cemsp90_byrace, cemsp90_byincome, cemsp90_byeducation, 
+#       cemsp90_byethnicity, cemsp90_byvehicle]]
+# # Loop through NOx sources
+# for i in np.arange(0,2,1):
+#     # Plotting
+#     axes[i].plot(curves[i][1], ls='-', lw=2, color=color1, zorder=11)
+#     axes[i].plot(curves[i][2], ls='-', lw=2, color=color2, zorder=11)
+#     axes[i].plot(curves[i][0], ls='-', lw=2, color=color3, zorder=11)
+#     axes[i].plot(curves[i][3], ls='-', lw=2, color=color4, zorder=11)
+#     axes[i].plot(curves[i][4], ls='-', lw=2, color=color5, zorder=11)
+# # Legend
+# ax1.text(0.5, 0.92, 'Income', fontsize=12, va='center',
+#     color=color1, ha='center', transform=ax1.transAxes)
+# ax1.annotate('Higher',xy=(0.58,0.92),xytext=(0.78,0.92), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color1), 
+#     fontsize=12, color=color1, xycoords=ax1.transAxes)
+# ax1.annotate('Lower',xy=(0.41,0.92),xytext=(0.1,0.92), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color1), 
+#     fontsize=12, color=color1, xycoords=ax1.transAxes)
+# ax1.text(0.5, 0.84, 'Education', fontsize=12, color=color2, va='center', 
+#     ha='center', transform=ax1.transAxes)
+# ax1.annotate('More',xy=(0.61,0.84),xytext=(0.78,0.84), va='center', 
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), fontsize=12,
+#     color=color2, xycoords=ax1.transAxes)
+# ax1.annotate('Less',xy=(0.38,0.84),xytext=(0.1,0.84), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), 
+#     fontsize=12, color=color2, xycoords=ax1.transAxes)
+# ax1.text(0.5, 0.76, 'White', fontsize=12, va='center',
+#     color=color3, ha='center', transform=ax1.transAxes)
+# ax1.annotate('More',xy=(0.57,0.76),xytext=(0.78,0.76), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), color=color3,
+#     fontsize=12, xycoords=ax1.transAxes)
+# ax1.annotate('Less',xy=(0.43,0.76),xytext=(0.1,0.76), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), fontsize=12, 
+#     color=color3, xycoords=ax1.transAxes)
+# ax1.text(0.5, 0.68, 'Hispanic', fontsize=12, 
+#     color=color4, ha='center', va='center', transform=ax1.transAxes)
+# ax1.annotate('Less',xy=(0.59,0.68),xytext=(0.78,0.68), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color4), fontsize=12, 
+#     color=color4, xycoords=ax1.transAxes)
+# ax1.annotate('More',xy=(0.4,0.68),xytext=(0.1,0.68), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color4), fontsize=12,
+#     color=color4, xycoords=ax1.transAxes)
+# ax1.text(0.5, 0.6, 'Vehicle ownership', fontsize=12, ha='center',
+#     va='center', color=color5, transform=ax1.transAxes)
+# ax1.annotate('More',xy=(0.65,0.6),xytext=(0.78,0.6), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color5), fontsize=12, 
+#     color=color5, xycoords=ax1.transAxes)
+# ax1.annotate('Less',xy=(0.34,0.6),xytext=(0.1,0.6), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color5), fontsize=12,
+#     color=color5, xycoords=ax1.transAxes)
+# for ax in axes:
+#     ax.set_xlim([0,9])
+#     ax.set_xticks(np.arange(0,10,1))
+#     ax.set_xticklabels([])
+# for ax in axes:
+#     ax.set_xticklabels(['First', 'Second', 'Third', 'Fourth', 'Fifth', 
+#         'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'], fontsize=10)
+#     ax.set_xlabel('Decile', fontsize=12)
+# # ax1.set_ylim([0,0.01])
+# # ax1.set_yticks(np.linspace(0,0.01,9))
+# # ax1.set_yticklabels(['0','', '2.5', '', '5.0', '', '7.5', '',
+# #     '10$\:$x$\:$10$^{\mathregular{-2}}$'])
+# # ax2.set_ylim([0.0, 0.04])
+# # ax2.set_yticks(np.linspace(0,0.04,9))
+# # ax2.set_yticklabels(['0', '', '1', '', '2', '', '3', '', 
+# #     '4$\:$x$\:$10$^{\mathregular{-2}}$'])
+# # ax3.set_ylim([0,0.006])
+# # ax3.set_yticks(np.linspace(0,0.006,9))
+# # ax3.set_yticklabels(['0', '', '1.5' , '', '3.0' , '', '4.5' , '', 
+# #     '6.0$\:$x$\:$10$^{\mathregular{-3}}$'])
+# # ax4.set_ylim([0,4])
+# # ax4.set_yticks(np.linspace(0,4,9))
+# # ax4.set_yticklabels(['0','','1','','2','','3','','4'])
+# ax1.set_title('(a) Small industry (< 20th percentile) density', 
+#     fontsize=12, loc='left')              
+# ax1.set_ylabel('[industries (1 km radius)$^{-1}$]', fontsize=12)              
+# ax2.set_title('(b) Large industry (> 80th percentile) density', 
+#     fontsize=12, loc='left')
+# # plt.subplots_adjust(left=0.08, right=0.95)
+# plt.savefig(DIR_FIGS+'figS6_largesmall_reviewercomments.png', dpi=1000)

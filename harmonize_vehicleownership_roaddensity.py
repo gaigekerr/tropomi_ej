@@ -5,16 +5,16 @@ primary and secondary roads. The fraction of households in each tract without
 vehicles and the method of transportation to work are also recorded in output 
 file"""
 
-# DIR_NO2 = '/Users/ghkerr/GW/data/'
-# DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
-# DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
-# DIR_OUT = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
-# DIR_GEO = '/Users/ghkerr/GW/data/geography/'
-DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
-DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
-DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
-DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
-DIR_GEO = '/mnt/scratch1/gaige/data/tropomi_ej/'
+DIR_NO2 = '/Users/ghkerr/GW/data/'
+DIR_CENSUS = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+DIR_SHAPEFILE = '/Users/ghkerr/GW/data/geography/tigerline/'
+DIR_OUT = '/Users/ghkerr/GW/data/census_no2_harmonzied/'
+DIR_GEO = '/Users/ghkerr/GW/data/geography/'
+#DIR_NO2 = '/mnt/scratch1/gaige/data/tropomi_ej/'
+#DIR_CENSUS = '/mnt/scratch1/gaige/data/tropomi_ej/'
+#DIR_SHAPEFILE = '/mnt/scratch1/gaige/data/tropomi_ej/'
+#DIR_OUT = '/mnt/scratch1/gaige/data/tropomi_ej/'
+#DIR_GEO = '/mnt/scratch1/gaige/data/tropomi_ej/'
 
 def harmonized_vehicleownership_roaddensity(FIPS):
     """function loads primary U.S. road geography and census tract geography 
@@ -40,7 +40,7 @@ def harmonized_vehicleownership_roaddensity(FIPS):
     import cartopy.crs as ccrs
     # Constants
     R = 6373.0
-    searchrad = 0.5
+    searchrad = 1.
     
     # Lists will be filled with requested information about nearby 
     # road density and 
@@ -264,6 +264,7 @@ def harmonized_noxsource(FIPS):
 
     geoids = []
     ports10, ports1, cems10, cems1 = [], [], [], []
+    cems1_p10, cems1_p20, cems1_p80, cems1_p90 = [], [], [], []
     airports10, airports1, rail10, rail1 = [], [], [], []
     # Port locations (downloaded from https://geonode.wfp.org/layers/
     # esri_gn:geonode:wld_trs_ports_wfp. Click on "Download Layer" and then 
@@ -277,8 +278,28 @@ def harmonized_noxsource(FIPS):
     # CEMS locations (from https://ampd.epa.gov/ampd/ for 2019)
     cems = pd.read_csv(DIR_CENSUS+'emission_01-26-2021_091613662.csv', sep=',',
         engine='python')
+    # Sum over sites 
+    cems = cems.groupby(by=[' Facility ID (ORISPL)', ' Facility Latitude', 
+        ' Facility Longitude']).sum().reset_index()
+    # Locate small (< 10th or 20th percentile) facilities 
+    cemsp10 = cems.loc[(cems[' NOx (tons)']<=np.nanpercentile(
+        cems[' NOx (tons)'],10))]
+    cemsp10 = pd.DataFrame({'Lat':cemsp10[' Facility Latitude'],
+        'Lng':cemsp10[' Facility Longitude']})
+    cemsp20 = cems.loc[(cems[' NOx (tons)']<=np.nanpercentile(
+        cems[' NOx (tons)'],20))]
+    cemsp20 = pd.DataFrame({'Lat':cemsp20[' Facility Latitude'],
+        'Lng':cemsp20[' Facility Longitude']})
+    # Locate large (> 80th or 90th percentile) facilities 
+    cemsp80 = cems.loc[(cems[' NOx (tons)']>=np.nanpercentile(
+        cems[' NOx (tons)'],80))]
+    cemsp80 = pd.DataFrame({'Lat':cemsp80[' Facility Latitude'],
+        'Lng':cemsp80[' Facility Longitude']})
+    cemsp90 = cems.loc[(cems[' NOx (tons)']>=np.nanpercentile(
+        cems[' NOx (tons)'],90))]
+    cemsp90 = pd.DataFrame({'Lat':cemsp90[' Facility Latitude'],
+        'Lng':cemsp90[' Facility Longitude']})
     # Average over multiple stacks
-    cems = cems.groupby(by=' Facility Name').mean()
     cems = pd.DataFrame({'Lat':cems[' Facility Latitude'],
         'Lng':cems[' Facility Longitude']})
     
@@ -297,7 +318,7 @@ def harmonized_noxsource(FIPS):
     # tiger-line-shapefile-2019-nation-u-s-rails-national-shapefile)
     rail = shapereader.Reader(DIR_GEO+
         'tigerline/tl_2019_us_rails/tl_2019_us_rails.shp')
-    rail_records = list(rail.records())   
+    # rail_records = list(rail.records())   
     rail = list(rail.geometries())
     rail_lat, rail_lng = [], []
     for r in rail: 
@@ -325,6 +346,26 @@ def harmonized_noxsource(FIPS):
                 (cems['Lat']<tract_intptlat+searchrad) & 
                 (cems['Lng']>tract_intptlon-searchrad) &
                 (cems['Lng']<tract_intptlon+searchrad)]
+            tract_cemsp10 = cemsp10.loc[
+                (cemsp10['Lat']>tract_intptlat-searchrad) &
+                (cemsp10['Lat']<tract_intptlat+searchrad) & 
+                (cemsp10['Lng']>tract_intptlon-searchrad) &
+                (cemsp10['Lng']<tract_intptlon+searchrad)]            
+            tract_cemsp20 = cemsp20.loc[(
+                cemsp20['Lat']>tract_intptlat-searchrad) &
+                (cemsp20['Lat']<tract_intptlat+searchrad) & 
+                (cemsp20['Lng']>tract_intptlon-searchrad) &
+                (cemsp20['Lng']<tract_intptlon+searchrad)]  
+            tract_cemsp80 = cemsp80.loc[
+                (cemsp80['Lat']>tract_intptlat-searchrad) &
+                (cemsp80['Lat']<tract_intptlat+searchrad) & 
+                (cemsp80['Lng']>tract_intptlon-searchrad) &
+                (cemsp80['Lng']<tract_intptlon+searchrad)]  
+            tract_cemsp90 = cemsp90.loc[
+                (cemsp90['Lat']>tract_intptlat-searchrad) &
+                (cemsp90['Lat']<tract_intptlat+searchrad) & 
+                (cemsp90['Lng']>tract_intptlon-searchrad) &
+                (cemsp90['Lng']<tract_intptlon+searchrad)]              
             tract_airports = airport.loc[(airport['Lat']>tract_intptlat-searchrad) &
                 (airport['Lat']<tract_intptlat+searchrad) & 
                 (airport['Lng']>tract_intptlon-searchrad) &
@@ -359,7 +400,55 @@ def harmonized_noxsource(FIPS):
                 a = (np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * 
                     np.sin(dlon/2.0)**2)
                 c = 2 * np.arcsin(np.sqrt(a))
-                dists_cems.append(R * c)                
+                dists_cems.append(R * c)
+            dists_cemsp10 = [] 
+            for r in np.arange(0,len(tract_cemsp10),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_cems.iloc[r]['Lng'],
+                    tract_cems.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2+np.cos(lat1)*np.cos(lat2)*
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_cemsp10.append(R * c)
+            dists_cemsp20 = [] 
+            for r in np.arange(0,len(tract_cemsp20),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_cems.iloc[r]['Lng'],
+                    tract_cems.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2+np.cos(lat1)*np.cos(lat2)*
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_cemsp20.append(R * c)
+            dists_cemsp80 = [] 
+            for r in np.arange(0,len(tract_cemsp80),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_cems.iloc[r]['Lng'],
+                    tract_cems.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2+np.cos(lat1)*np.cos(lat2)*
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_cemsp80.append(R * c)
+            dists_cemsp90 = [] 
+            for r in np.arange(0,len(tract_cemsp90),1):
+                lon1, lat1, lon2, lat2 = map(np.radians, [
+                    tract_cems.iloc[r]['Lng'],
+                    tract_cems.iloc[r]['Lat'],
+                    tract_intptlon, tract_intptlat])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = (np.sin(dlat/2.0)**2+np.cos(lat1)*np.cos(lat2)*
+                    np.sin(dlon/2.0)**2)
+                c = 2 * np.arcsin(np.sqrt(a))
+                dists_cemsp90.append(R * c)                
             # Loop through airports
             dists_airports = []
             for r in np.arange(0,len(tract_airports),1):
@@ -392,6 +481,10 @@ def harmonized_noxsource(FIPS):
             ports1.append(np.where(np.array(dists_ports)<1)[0].shape[0])
             cems10.append(np.where(np.array(dists_cems)<10)[0].shape[0])
             cems1.append(np.where(np.array(dists_cems)<1)[0].shape[0])
+            cems1_p10.append(np.where(np.array(dists_cemsp10)<1)[0].shape[0])
+            cems1_p20.append(np.where(np.array(dists_cemsp20)<1)[0].shape[0])
+            cems1_p80.append(np.where(np.array(dists_cemsp80)<1)[0].shape[0])
+            cems1_p90.append(np.where(np.array(dists_cemsp90)<1)[0].shape[0])            
             airports10.append(np.where(np.array(dists_airports)<10)[0].shape[0])
             airports1.append(np.where(np.array(dists_airports)<1)[0].shape[0])
             rail10.append(np.where(np.array(dists_rail)<10)[0].shape[0])
@@ -400,12 +493,14 @@ def harmonized_noxsource(FIPS):
     density = pd.DataFrame({'GEOID':geoids, 
         'portswithin10':ports10, 'portswithin1':ports1,
         'CEMSwithin10':cems10, 'CEMSwithin1':cems1,
+        'CEMSwithin1_p10':cems1_p10, 'CEMSwithin1_p20':cems1_p20,        
+        'CEMSwithin1_p80':cems1_p80, 'CEMSwithin1_p90':cems1_p90,        
         'airportswithin10':airports10, 'airportswithin1':airports1,
         'railwithin10':rail10, 'railwithin1':rail1})
     density = density.set_index('GEOID')
     density.index = density.index.map(str)
     density = density.replace('NaN', '', regex=True)
-    density.to_csv(DIR_OUT+'noxsourcedensity_us.csv', sep = ',')    
+    density.to_csv(DIR_OUT+'noxsourcedensity_us_v2.csv', sep = ',')
     return 
 
 FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 

@@ -3385,7 +3385,7 @@ def figS6(harmonized_urban):
     from scipy import stats
     import pandas as pd
     # Read in csv file for vehicle ownership/road density
-    noxsource = pd.read_csv(DIR_HARM+'noxsourcedensity_us.csv', delimiter=',', 
+    noxsource = pd.read_csv(DIR_HARM+'noxsourcedensity_us_v2.csv', delimiter=',', 
         header=0, engine='python')
     # Leading 0 for state FIPS codes < 10 
     noxsource['GEOID'] = noxsource['GEOID'].map(lambda x: f'{x:0>11}')
@@ -3403,11 +3403,11 @@ def figS6(harmonized_urban):
     ports_byeducation = [] 
     ports_byethnicity = []
     ports_byvehicle = []
-    cems_byrace = []
-    cems_byincome = []
-    cems_byeducation = []
-    cems_byethnicity = []
-    cems_byvehicle = []
+    cems_byrace, cemsp90_byrace = [], []
+    cems_byincome, cemsp90_byincome = [], []
+    cems_byeducation, cemsp90_byeducation = [], []
+    cems_byethnicity, cemsp90_byethnicity = [], []
+    cems_byvehicle, cemsp90_byvehicle = [], []
     airports_byrace = []
     airports_byincome = []
     airports_byeducation = []
@@ -3431,6 +3431,7 @@ def figS6(harmonized_urban):
             income<=np.nanpercentile(income, ptileu))]
         ports_byincome.append(decile_income['portswithin1'].mean())             
         cems_byincome.append(decile_income['CEMSwithin1'].mean())  
+        cemsp90_byincome.append(decile_income['CEMSwithin1_p80'].mean())
         airports_byincome.append(decile_income['airportswithin1'].mean())  
         rail_byincome.append(decile_income['railwithin1'].mean())  
         # By race            
@@ -3439,6 +3440,7 @@ def figS6(harmonized_urban):
             race<=np.nanpercentile(race, ptileu))] 
         ports_byrace.append(decile_race['portswithin1'].mean())             
         cems_byrace.append(decile_race['CEMSwithin1'].mean())  
+        cemsp90_byrace.append(decile_race['CEMSwithin1_p80'].mean())          
         airports_byrace.append(decile_race['airportswithin1'].mean())  
         rail_byrace.append(decile_race['railwithin1'].mean())
         # By education 
@@ -3447,6 +3449,7 @@ def figS6(harmonized_urban):
             ptileu))]
         ports_byeducation.append(decile_education['portswithin1'].mean())             
         cems_byeducation.append(decile_education['CEMSwithin1'].mean())  
+        cemsp90_byeducation.append(decile_education['CEMSwithin1_p80'].mean())  
         airports_byeducation.append(decile_education['airportswithin1'].mean())  
         rail_byeducation.append(decile_education['railwithin1'].mean())
         # By ethnicity
@@ -3455,6 +3458,7 @@ def figS6(harmonized_urban):
             ethnicity<=np.nanpercentile(ethnicity, ptileu))]    
         ports_byethnicity.append(decile_ethnicity['portswithin1'].mean())             
         cems_byethnicity.append(decile_ethnicity['CEMSwithin1'].mean())  
+        cemsp90_byethnicity.append(decile_ethnicity['CEMSwithin1_p80'].mean())  
         airports_byethnicity.append(decile_ethnicity['airportswithin1'].mean())  
         rail_byethnicity.append(decile_ethnicity['railwithin1'].mean())
         # By vehicle ownership            
@@ -3463,6 +3467,7 @@ def figS6(harmonized_urban):
             vehicle, ptileu))]
         ports_byvehicle.append(decile_vehicle['portswithin1'].mean())             
         cems_byvehicle.append(decile_vehicle['CEMSwithin1'].mean())  
+        cemsp90_byvehicle.append(decile_vehicle['CEMSwithin1_p80'].mean())  
         airports_byvehicle.append(decile_vehicle['airportswithin1'].mean())  
         rail_byvehicle.append(decile_vehicle['railwithin1'].mean())    
     fig = plt.figure(figsize=(11.5,7))
@@ -3493,6 +3498,20 @@ def figS6(harmonized_urban):
         axes[i].plot(curves[i][0], ls='-', lw=2, color=color3, zorder=11)
         axes[i].plot(curves[i][3], ls='-', lw=2, color=color4, zorder=11)
         axes[i].plot(curves[i][4], ls='-', lw=2, color=color5, zorder=11)
+    # Inset axis for large CEMS sources
+    ax2ins = ax2.inset_axes([0.45, 0.5, 0.5, 0.45]) #Left, Bottom, Width, Height
+    ax2ins.plot(cemsp90_byrace, ls='-', lw=2, color=color1, zorder=11)
+    ax2ins.plot(cemsp90_byincome, ls='-', lw=2, color=color2, zorder=11)
+    ax2ins.plot(cemsp90_byeducation, ls='-', lw=2, color=color3, zorder=11)
+    ax2ins.plot(cemsp90_byethnicity, ls='-', lw=2, color=color4, zorder=11)
+    ax2ins.plot(cemsp90_byvehicle, ls='-', lw=2, color=color5, zorder=11)   
+    ax2ins.set_xlim([0,9])
+    ax2ins.set_xticks(np.arange(0,10,1))
+    ax2ins.set_xticklabels([])
+    ax2ins.set_ylim([0,0.0015])
+    ax2ins.set_yticks(np.linspace(0,0.0018,5))
+    ax2ins.set_yticklabels(['0', '', '9', '', 
+        '18$\:$x$\:$10$^{\mathregular{-4}}$'])
     # Legend
     ax1.text(0.5, 0.92, 'Income', fontsize=12, va='center',
         color=color1, ha='center', transform=ax1.transAxes)
@@ -4349,50 +4368,50 @@ def figS11(harmonized):
     plt.show()
     return 
     
-import numpy as np
-import sys
-sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
-import tropomi_census_utils
-import netCDF4 as nc
-# 13 March - 13 June 2019 and 2020 average NO2
-no2_pre_dg = nc.Dataset(DIR_TROPOMI+
-    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
-no2_pre_dg = no2_pre_dg['NO2'][:]
-no2_post_dg = nc.Dataset(DIR_TROPOMI+
-    'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
-no2_post_dg = no2_post_dg['NO2'][:].data
-lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
-lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
-FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
-        '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
-        '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
-        '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
-        '51', '53', '54', '55', '56']
-harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
-# # Add vehicle ownership/road density data
-harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
-# Split into rural and urban tracts
-harmonized_urban, harmonized_rural = \
-    tropomi_census_utils.split_harmonized_byruralurban(harmonized)
+# import numpy as np
+# import sys
+# sys.path.append('/Users/ghkerr/GW/tropomi_ej/')
+# import tropomi_census_utils
+# import netCDF4 as nc
+# # 13 March - 13 June 2019 and 2020 average NO2
+# no2_pre_dg = nc.Dataset(DIR_TROPOMI+
+#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132019_precovid19_QA75.ncf')
+# no2_pre_dg = no2_pre_dg['NO2'][:]
+# no2_post_dg = nc.Dataset(DIR_TROPOMI+
+#     'Tropomi_NO2_griddedon0.01grid_Mar13-Jun132020_postcovid19_QA75.ncf')
+# no2_post_dg = no2_post_dg['NO2'][:].data
+# lat_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LAT'][:].data
+# lng_dg = nc.Dataset(DIR_TROPOMI+'LatLonGrid.ncf')['LON'][:].data
+# FIPS = ['01', '04', '05', '06', '08', '09', '10', '11', '12', '13', '16', 
+#         '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27',
+#         '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', 
+#         '39', '40', '41', '42', '44', '45', '46', '47', '48', '49', '50',
+#         '51', '53', '54', '55', '56']
+# harmonized = tropomi_census_utils.open_census_no2_harmonzied(FIPS)
+# # # Add vehicle ownership/road density data
+# harmonized = tropomi_census_utils.merge_harmonized_vehicleownership(harmonized)
+# # Split into rural and urban tracts
+# harmonized_urban, harmonized_rural = \
+#     tropomi_census_utils.split_harmonized_byruralurban(harmonized)
 
-# Main figures
-fig1(harmonized, harmonized_urban)
-fig2(harmonized, harmonized_rural, harmonized_urban)
-fig3(harmonized_urban)
-fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
+# # Main figures
+# fig1(harmonized, harmonized_urban)
+# fig2(harmonized, harmonized_rural, harmonized_urban)
+# fig3(harmonized_urban)
+# fig4(harmonized, lat_dg, lng_dg, no2_post_dg, no2_pre_dg) 
 
-# Supplementary figures
-figS1()
-figS2(FIPS)
-figS3(harmonized, harmonized_rural)
-figS4(harmonized, harmonized_urban, harmonized_rural)
-figS5(harmonized, harmonized_rural, harmonized_urban)
-figS6(harmonized_urban)
-figS7()
-figS8()
-figS9(harmonized_urban)
-figS10(FIPS, harmonized_urban, harmonized_rural)
-figS11(harmonized)
+# # Supplementary figures
+# figS1()
+# figS2(FIPS)
+# figS3(harmonized, harmonized_rural)
+# figS4(harmonized, harmonized_urban, harmonized_rural)
+# figS5(harmonized, harmonized_rural, harmonized_urban)
+# figS6(harmonized_urban)
+# figS7()
+# figS8()
+# figS9(harmonized_urban)
+# figS10(FIPS, harmonized_urban, harmonized_rural)
+# figS11(harmonized)
 
 # # Figure for Dan's paper
 # import netCDF4 as nc
@@ -4846,6 +4865,9 @@ figS11(harmonized)
 #     decile_income = harmonized_noxsource.loc[(income>
 #         np.nanpercentile(income, ptilel)) & (
 #         income<=np.nanpercentile(income, ptileu))]
+#     decile_race = harmonized_noxsource.loc[(race>
+#         np.nanpercentile(race, ptilel)) & (
+#         race<=np.nanpercentile(race, ptileu))]             
 #     cems_byincome.append(decile_income['CEMSwithin1'].mean()) 
 #     cemsp10_byincome.append(decile_income['CEMSwithin1_p20'].mean()) 
 #     cemsp90_byincome.append(decile_income['CEMSwithin1_p80'].mean())  
@@ -4877,6 +4899,122 @@ figS11(harmonized)
 #     cems_byvehicle.append(decile_vehicle['CEMSwithin1'].mean())
 #     cemsp10_byvehicle.append(decile_vehicle['CEMSwithin1_p20'].mean())  
 #     cemsp90_byvehicle.append(decile_vehicle['CEMSwithin1_p80'].mean())  
+
+
+
+# fig = plt.figure(figsize=(5,8))
+# ax1 = plt.subplot2grid((5,1),(0,0))
+# ax2 = plt.subplot2grid((5,1),(1,0))
+# ax3 = plt.subplot2grid((5,1),(2,0))
+# ax4 = plt.subplot2grid((5,1),(3,0))
+# ax5 = plt.subplot2grid((5,1),(4,0))
+
+
+
+
+
+
+# axes = [ax1, ax2, ax3, ax4, ax5]
+# curves1 = [cemsp10_byrace, cemsp10_byincome, cemsp10_byeducation, 
+#     cemsp10_byethnicity, cemsp10_byvehicle] 
+# curves2 = [cemsp90_byrace, cemsp90_byincome, cemsp90_byeducation, 
+#     cemsp90_byethnicity, cemsp90_byvehicle]
+# # Loop through NOx sources
+# for i in np.arange(0,5,1):
+#      axes[i].plot(curves1[i], ls='-', lw=2, color='k', zorder=11)
+#      axes[i].plot(curves2[i], ls='-.', lw=2, color='k', zorder=11)
+
+# ax1.annotate('Higher',xy=(0.58,0.92),xytext=(0.78,0.92), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color='k'), 
+#     fontsize=12, color='k', xycoords=ax1.transAxes)
+# ax1.annotate('Lower',xy=(0.41,0.92),xytext=(0.1,0.92), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color='k'), 
+#     fontsize=12, color='k', xycoords=ax1.transAxes)
+
+
+# ax1.set_title('(a) White')
+# ax2.set_title('(b) Income')
+# ax3.set_title('(c) Educational attainment')
+# ax4.set_title('(d) Non-Hispanic')
+# ax5.set_title('(e) Vehicle ownership')
+# ax1.text(0.5, 0.92, 'Income', fontsize=12, va='center',
+#     color=color1, ha='center', transform=ax1.transAxes)
+
+# # ax1.text(0.5, 0.84, 'Education', fontsize=12, color=color2, va='center', 
+# #     ha='center', transform=ax1.transAxes)
+# # ax1.annotate('More',xy=(0.61,0.84),xytext=(0.78,0.84), va='center', 
+# #     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), fontsize=12,
+# #     color=color2, xycoords=ax1.transAxes)
+# # ax1.annotate('Less',xy=(0.38,0.84),xytext=(0.1,0.84), va='center',
+# #     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color2), 
+# #     fontsize=12, color=color2, xycoords=ax1.transAxes)
+# # ax1.text(0.5, 0.76, 'White', fontsize=12, va='center',
+# #     color=color3, ha='center', transform=ax1.transAxes)
+# # ax1.annotate('More',xy=(0.57,0.76),xytext=(0.78,0.76), va='center',
+# #     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), color=color3,
+# #     fontsize=12, xycoords=ax1.transAxes)
+# # ax1.annotate('Less',xy=(0.43,0.76),xytext=(0.1,0.76), va='center',
+# #     arrowprops=dict(arrowstyle= '<|-', lw=1, color=color3), fontsize=12, 
+# #     color=color3, xycoords=ax1.transAxes)
+
+
+
+
+
+
+# fig = plt.figure(figsize=(5,8))
+# ax1 = plt.subplot2grid((5,1),(0,0))
+# ax2 = plt.subplot2grid((5,1),(1,0))
+# ax3 = plt.subplot2grid((5,1),(2,0))
+# ax4 = plt.subplot2grid((5,1),(3,0))
+# ax5 = plt.subplot2grid((5,1),(4,0))
+
+
+
+
+
+
+# axes = [ax1, ax2, ax3, ax4, ax5]
+# curves1 = [cemsp10_byrace, cemsp10_byincome, cemsp10_byeducation, 
+#     cemsp10_byethnicity, cemsp10_byvehicle] 
+# curves2 = [cemsp90_byrace, cemsp90_byincome, cemsp90_byeducation, 
+#     cemsp90_byethnicity, cemsp90_byvehicle]
+# # Loop through NOx sources
+# for i in np.arange(0,5,1):
+#      axes[i].plot(curves2[i], ls='-', lw=2, color='k', zorder=11, label='Large sources')
+#      # axt = axes[i].twinx()
+#      # axt.plot(curves2[i], ls='-.', lw=2, color='k', zorder=11, label='Large sources')
+
+# ax1.annotate('Higher',xy=(0.58,0.92),xytext=(0.78,0.92), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color='k'), 
+#     fontsize=12, color='k', xycoords=ax1.transAxes)
+# ax1.annotate('Lower',xy=(0.41,0.92),xytext=(0.1,0.92), va='center',
+#     arrowprops=dict(arrowstyle= '<|-', lw=1, color='k'), 
+#     fontsize=12, color='k', xycoords=ax1.transAxes)
+# ax5.legend()
+
+# ax1.set_title('(a) White')
+# ax2.set_title('(b) Income')
+# ax3.set_title('(c) Educational attainment')
+# ax4.set_title('(d) Non-Hispanic')
+# ax5.set_title('(e) Vehicle ownership')
+
+# for ax in axes:
+#     ax.set_xlim([0,9])
+#     ax.set_xticks(np.arange(0,10,1))
+#     ax.set_xticklabels([])
+
+
+# ax5.set_xticklabels(['First', 'Second', 'Third', 'Fourth', 'Fifth', 
+#     'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'], fontsize=10)
+# ax5.set_xlabel('Decile', fontsize=12)
+
+# plt.subplots_adjust(hspace=0.5, bottom=0.08, top=0.95)
+# plt.savefig('/Users/ghkerr/Desktop/largeCEMS_fordan.png', dpi=600)
+
+
+
+
 # fig = plt.figure(figsize=(11.5,5))
 # ax1 = plt.subplot2grid((1,2),(0,0))
 # ax2 = plt.subplot2grid((1,2),(0,1))

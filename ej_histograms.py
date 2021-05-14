@@ -3594,7 +3594,7 @@ def figS7():
     import matplotlib.pyplot as plt
     import pandas as pd
     import matplotlib.patches as mpatches
-    nei = '/Users/ghkerr/Downloads/2017neiJan_county_tribe_allsector/'+\
+    nei = '/Users/ghkerr/GW/data/emissions/2017neiJan_county_tribe_allsector/'+\
         'esg_cty_sector_15468.csv'
     nei = pd.read_csv(nei, delimiter=',', engine='python')
     nei = nei.loc[nei['pollutant code']=='NOX']
@@ -3735,8 +3735,8 @@ def figS7():
         ax.set_yticklabels(['0','','20','','40'])
         ax.set_ylabel('Contribution [%]', fontsize=12)
     # Add legend
-    patch_ld = mpatches.Patch(color=color_ld, label='Light duty non-diesel')
-    patch_hd = mpatches.Patch(color=color_hd, label='Heavy duty diesel')
+    patch_ld = mpatches.Patch(color=color_ld, label='Light-duty non-diesel')
+    patch_hd = mpatches.Patch(color=color_hd, label='Heavy-duty diesel')
     patch_nr = mpatches.Patch(color=color_nr, label='Non-road diesel')
     patch_fc = mpatches.Patch(color=color_fc, label='Ind., res., and comm.')
     patch_ma = mpatches.Patch(color=color_ma, label='Commercial marine')
@@ -3913,8 +3913,8 @@ def figS8():
     axb.set_yticklabels(['0','8','16','24','32'])
     axb.set_ylabel(r'Fractional change $\mathregular{\times}$ Contribution [%]')
     # Add legend
-    patch_ld = mpatches.Patch(color=color_ld, label='Light duty non-diesel')
-    patch_hd = mpatches.Patch(color=color_hd, label='Heavy duty diesel')
+    patch_ld = mpatches.Patch(color=color_ld, label='Light-duty non-diesel')
+    patch_hd = mpatches.Patch(color=color_hd, label='Heavy-duty diesel')
     patch_fc = mpatches.Patch(color=color_fc, label='Ind., res., and comm.')
     patch_ma = mpatches.Patch(color=color_ma, label='Commercial Marine')
     patch_lo = mpatches.Patch(color=color_lo, label='Rail')
